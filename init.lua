@@ -52,7 +52,7 @@ vim.g.have_nerd_font = true
 vim.o.number = true
 -- You can also add relative line numbers, to help with jumping.
 --  Experiment for yourself to see if you like it!
-vim.o.relativenumber = true
+vim.o.relativenumber = false
 
 -- Enable mouse mode, can be useful for resizing splits for example!
 vim.o.mouse = 'a'
@@ -116,7 +116,7 @@ vim.o.scrolloff = 10
 -- See `:help 'confirm'`
 vim.o.confirm = true
 
-vim.o.wrap = true
+vim.o.wrap = false
 
 -- [[ Basic Keymaps ]]
 --  See `:help vim.keymap.set()`
@@ -126,7 +126,7 @@ vim.o.wrap = true
 vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
 
 -- Diagnostic keymaps
-vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagnostic [Q]uickfix list' })
+vim.keymap.set('n', '<leader>eq', vim.diagnostic.setloclist, { desc = 'Open diagnostic [Q]uickfix list' })
 
 -- Exit terminal mode in the builtin terminal with a shortcut that is a bit easier
 -- for people to discover. Otherwise, you normally need to press <C-\><C-n>, which
@@ -303,7 +303,6 @@ require('lazy').setup({
 
       -- Document existing key chains
       spec = {
-        { '<leader>f', group = '[F]find (search alias)' },
         { '<leader>s', group = '[S]earch' },
         { '<leader>t', group = '[T]oggle' },
         -- { '<leader>h', group = 'Git [H]unk', mode = { 'n', 'v' } },
@@ -320,6 +319,9 @@ require('lazy').setup({
       { 'natecraddock/telescope-zf-native.nvim' },
 
       { 'nvim-telescope/telescope-ui-select.nvim' },
+
+      -- https://github.com/nvim-telescope/telescope-live-grep-args.nvim
+      { 'nvim-telescope/telescope-live-grep-args.nvim', version = '^1.0.0' },
 
       -- Useful for getting pretty icons, but requires a Nerd Font.
       { 'nvim-tree/nvim-web-devicons', enabled = vim.g.have_nerd_font },
@@ -345,52 +347,63 @@ require('lazy').setup({
       -- do as well as how to actually do it!
 
       -- [[ Configure Telescope ]]
+
+      local lga_actions = require 'telescope-live-grep-args.actions'
+      local telescope = require 'telescope'
+
       -- See `:help telescope` and `:help telescope.setup()`
       require('telescope').setup {
-        -- You can put your default mappings / updates / etc. in here
-        --  All the info you're looking for is in `:help telescope.setup()`
-        --
-        -- defaults = {
-        --   mappings = {
-        --     i = { ['<c-enter>'] = 'to_fuzzy_refine' },
-        --   },
-        -- },
-        -- pickers = {}
         extensions = {
           ['ui-select'] = {
             require('telescope.themes').get_dropdown(),
+          },
+
+          live_grep_args = {
+            auto_quoting = true, -- enable/disable auto-quoting
+            -- define mappings, e.g.
+            mappings = { -- extend mappings
+              i = {
+                ['<C-k>'] = lga_actions.quote_prompt(),
+                ['<C-i>'] = lga_actions.quote_prompt { postfix = ' --iglob ' },
+                ['<C-l>'] = lga_actions.quote_prompt { postfix = ' -F ' },
+                -- freeze the current list and start a fuzzy search in the frozen list
+                ['<C-f>'] = lga_actions.to_fuzzy_refine,
+                ['<C-space>'] = lga_actions.to_fuzzy_refine,
+              },
+            },
           },
         },
       }
 
       -- Enable Telescope extensions if they are installed
-      pcall(require('telescope').load_extension, 'fzf')
-      pcall(require('telescope').load_extension, 'zf-native')
-      pcall(require('telescope').load_extension, 'ui-select')
+      -- pcall(require('telescope').load_extension, 'fzf')
+      telescope.load_extension 'zf-native'
+      telescope.load_extension 'ui-select'
+      telescope.load_extension 'live_grep_args'
 
       -- See `:help telescope.builtin`
       local builtin = require 'telescope.builtin'
-      vim.keymap.set('n', '<leader>sh', builtin.help_tags, { desc = '[S]earch [H]elp' })
-      vim.keymap.set('n', '<leader>sk', builtin.keymaps, { desc = '[S]earch [K]eymaps' })
-      vim.keymap.set('n', '<leader>sf', builtin.find_files, { desc = '[S]earch [F]iles' })
-      vim.keymap.set('n', '<leader>ss', builtin.builtin, { desc = '[S]earch [S]elect Telescope' })
-      vim.keymap.set('n', '<leader>sw', builtin.grep_string, { desc = '[S]earch current [W]ord' })
-      vim.keymap.set('n', '<leader>sg', builtin.live_grep, { desc = '[S]earch by [G]rep' })
-      vim.keymap.set('n', '<leader>sd', builtin.diagnostics, { desc = '[S]earch [D]iagnostics' })
-      vim.keymap.set('n', '<leader>sr', builtin.resume, { desc = '[S]earch [R]esume' })
-      vim.keymap.set('n', '<leader>s.', builtin.oldfiles, { desc = '[S]earch Recent Files ("." for repeat)' })
+
+      -- faster shortcuts
+      vim.keymap.set('n', '<leader>p', builtin.find_files, { desc = '[F]ind [F]iles' })
+      vim.keymap.set('n', '<leader>s', ":lua require('telescope').extensions.live_grep_args.live_grep_args()<CR>")
 
       vim.keymap.set('n', '<leader>fh', builtin.help_tags, { desc = '[F]ind [H]elp' })
       vim.keymap.set('n', '<leader>fk', builtin.keymaps, { desc = '[F]ind [K]eymaps' })
-      vim.keymap.set('n', '<leader>ff', builtin.find_files, { desc = '[F]ind [F]iles' })
       vim.keymap.set('n', '<leader>fs', builtin.builtin, { desc = '[F]ind [S]elect Telescope' })
-      vim.keymap.set('n', '<leader>fw', builtin.grep_string, { desc = '[F]ind current [W]ord' })
-      vim.keymap.set('n', '<leader>fg', builtin.live_grep, { desc = '[F]ind by [G]rep' })
+      -- vim.keymap.set('n', '<leader>fg', builtin.live_grep, { desc = '[F]ind by [G]rep' })
+      vim.keymap.set('n', '<leader>fg', ":lua require('telescope').extensions.live_grep_args.live_grep_args()<CR>")
+      vim.keymap.set('n', '<leader>fa', ':lua require(\'telescope\').extensions.live_grep_args.live_grep_args("app")<CR>')
       vim.keymap.set('n', '<leader>fd', builtin.diagnostics, { desc = '[F]ind [D]iagnostics' })
       vim.keymap.set('n', '<leader>fr', builtin.resume, { desc = '[F]ind [R]esume' })
-      vim.keymap.set('n', '<leader>f.', builtin.oldfiles, { desc = '[F]ind Recent Files ("." for repeat)' })
+      vim.keymap.set('n', '<leader>fo', builtin.oldfiles, { desc = '[F]ind [O]ld' })
 
-      vim.keymap.set('n', '<leader><leader>', builtin.buffers, { desc = '[ ] Find existing buffers' })
+      -- vim.keymap.set('n', '<leader><leader>', builtin.buffers, { desc = '[ ] Find existing buffers' })
+
+      -- vim.keymap.set('n', '<leader>fa', builtin.find_files, { desc = '[F]ind [F]iles' })
+      vim.keymap.set('n', '<leader>ff', function()
+        require('telescope').extensions.smart_open.smart_open()
+      end, { noremap = true, silent = true })
 
       -- Slightly advanced example of overriding default behavior and theme
       vim.keymap.set('n', '<leader>/', function()
@@ -403,7 +416,7 @@ require('lazy').setup({
 
       -- It's also possible to pass additional configuration options.
       --  See `:help telescope.builtin.live_grep()` for information about particular keys
-      vim.keymap.set('n', '<leader>s/', function()
+      vim.keymap.set('n', '<leader>f/', function()
         builtin.live_grep {
           grep_open_files = true,
           prompt_title = 'Live Grep in Open Files',
@@ -411,13 +424,13 @@ require('lazy').setup({
       end, { desc = '[S]earch [/] in Open Files' })
 
       -- Shortcut for searching your Neovim configuration files
-      vim.keymap.set('n', '<leader>sn', function()
-        builtin.find_files { cwd = vim.fn.stdpath 'config' }
-      end, { desc = '[S]earch [N]eovim files' })
-
       vim.keymap.set('n', ',v', function()
         builtin.find_files { cwd = vim.fn.stdpath 'config' }
       end, { desc = '[S]earch [N]eovim files' })
+
+      -- local lga_shortcuts = require 'telescope-live-grep-args.shortcuts'
+      -- vim.keymap.set('n', '<leader>fw', lga_shortcuts.grep_word_under_cursor, { desc = '[F]ind [W]ord under cursor' })
+      -- vim.keymap.set('v', '<leader>fw', lga_shortcuts.grep_visual_selection, { desc = '[F]ind [W]ord (visual selection)' })
     end,
   },
 
@@ -501,6 +514,7 @@ require('lazy').setup({
 
           -- Execute a code action, usually your cursor needs to be on top of an error
           -- or a suggestion from your LSP for this to activate.
+          map('<leader>ea', vim.lsp.buf.code_action, 'See error (code action)', { 'n', 'x' })
           map('gra', vim.lsp.buf.code_action, '[G]oto Code [A]ction', { 'n', 'x' })
 
           -- Find references for the word under your cursor.
@@ -703,7 +717,7 @@ require('lazy').setup({
     cmd = { 'ConformInfo' },
     keys = {
       {
-        '<leader>f',
+        '<leader>fm',
         function()
           require('conform').format { async = true, lsp_format = 'fallback' }
         end,
@@ -848,6 +862,16 @@ require('lazy').setup({
     },
   },
 
+  {
+    'uhs-robert/oasis.nvim',
+    lazy = false,
+    priority = 1000,
+    config = function()
+      require('oasis').setup() -- (see Configuration below for all customization options)
+      vim.cmd.colorscheme 'oasis' -- After setup, apply theme (or any style like "oasis-night")
+    end,
+  },
+
   { -- You can easily change to a different colorscheme.
     -- Change the name of the colorscheme plugin below, and then
     -- change the command in the config to whatever the name of that colorscheme is.
@@ -866,12 +890,131 @@ require('lazy').setup({
       -- Load the colorscheme here.
       -- Like many other themes, this one has different styles, and you could load
       -- any other, such as 'tokyonight-storm', 'tokyonight-moon', or 'tokyonight-day'.
-      vim.cmd.colorscheme 'tokyonight-night'
+      -- vim.cmd.colorscheme 'tokyonight-night'
     end,
   },
 
   -- Highlight todo, notes, etc in comments
   { 'folke/todo-comments.nvim', event = 'VimEnter', dependencies = { 'nvim-lua/plenary.nvim' }, opts = { signs = false } },
+
+  {
+    'kylechui/nvim-surround',
+    version = '^3.0.0', -- Use for stability; omit to use `main` branch for the latest features
+    event = 'VeryLazy',
+    config = function()
+      require('nvim-surround').setup {
+        -- Configuration here, or leave empty to use defaults
+      }
+    end,
+  },
+
+  {
+    'nvim-treesitter/nvim-treesitter-textobjects',
+    lazy = true,
+    config = function()
+      ---@diagnostic disable-next-line: missing-fields
+      require('nvim-treesitter.configs').setup {
+        textobjects = {
+          select = {
+            enable = true,
+
+            -- Automatically jump forward to textobj, similar to targets.vim
+            lookahead = true,
+
+            keymaps = {
+              -- You can use the capture groups defined in textobjects.scm
+              ['af'] = '@function.outer',
+              ['if'] = '@function.inner',
+              ['ac'] = '@class.outer',
+              -- You can optionally set descriptions to the mappings (used in the desc parameter of
+              -- nvim_buf_set_keymap) which plugins like which-key display
+              ['ic'] = { query = '@class.inner', desc = 'Select inner part of a class region' },
+              -- You can also use captures from other query groups like `locals.scm`
+              ['as'] = { query = '@local.scope', query_group = 'locals', desc = 'Select language scope' },
+            },
+            -- You can choose the select mode (default is charwise 'v')
+            --
+            -- Can also be a function which gets passed a table with the keys
+            -- * query_string: eg '@function.inner'
+            -- * method: eg 'v' or 'o'
+            -- and should return the mode ('v', 'V', or '<c-v>') or a table
+            -- mapping query_strings to modes.
+            selection_modes = {
+              ['@parameter.outer'] = 'v', -- charwise
+              ['@function.outer'] = 'V', -- linewise
+              ['@class.outer'] = '<c-v>', -- blockwise
+            },
+            -- If you set this to `true` (default is `false`) then any textobject is
+            -- extended to include preceding or succeeding whitespace. Succeeding
+            -- whitespace has priority in order to act similarly to eg the built-in
+            -- `ap`.
+            --
+            -- Can also be a function which gets passed a table with the keys
+            -- * query_string: eg '@function.inner'
+            -- * selection_mode: eg 'v'
+            -- and should return true or false
+            include_surrounding_whitespace = true,
+          },
+
+          swap = {
+            enable = true,
+            swap_next = {
+              ['<leader>na'] = '@parameter.inner', -- swap parameters/argument with next
+              ['<leader>nm'] = '@function.outer', -- swap function with next
+            },
+            swap_previous = {
+              ['<leader>pa'] = '@parameter.inner', -- swap parameters/argument with prev
+              ['<leader>pm'] = '@function.outer', -- swap function with previous
+            },
+          },
+
+          move = {
+            enable = true,
+            set_jumps = true, -- whether to set jumps in the jumplist
+            goto_next_start = {
+              [']f'] = { query = '@call.outer', desc = 'Next function call start' },
+              [']m'] = { query = '@function.outer', desc = 'Next method/function def start' },
+              [']c'] = { query = '@class.outer', desc = 'Next class start' },
+              [']i'] = { query = '@conditional.outer', desc = 'Next conditional start' },
+              [']l'] = { query = '@loop.outer', desc = 'Next loop start' },
+
+              -- You can pass a query group to use query from `queries/<lang>/<query_group>.scm file in your runtime path.
+              -- Below example nvim-treesitter's `locals.scm` and `folds.scm`. They also provide highlights.scm and indent.scm.
+              [']s'] = { query = '@scope', query_group = 'locals', desc = 'Next scope' },
+              [']z'] = { query = '@fold', query_group = 'folds', desc = 'Next fold' },
+            },
+            goto_next_end = {
+              [']F'] = { query = '@call.outer', desc = 'Next function call end' },
+              [']M'] = { query = '@function.outer', desc = 'Next method/function def end' },
+              [']C'] = { query = '@class.outer', desc = 'Next class end' },
+              [']I'] = { query = '@conditional.outer', desc = 'Next conditional end' },
+              [']L'] = { query = '@loop.outer', desc = 'Next loop end' },
+            },
+            goto_previous_start = {
+              ['[f'] = { query = '@call.outer', desc = 'Prev function call start' },
+              ['[m'] = { query = '@function.outer', desc = 'Prev method/function def start' },
+              ['[c'] = { query = '@class.outer', desc = 'Prev class start' },
+              ['[i'] = { query = '@conditional.outer', desc = 'Prev conditional start' },
+              ['[l'] = { query = '@loop.outer', desc = 'Prev loop start' },
+            },
+            goto_previous_end = {
+              ['[F'] = { query = '@call.outer', desc = 'Prev function call end' },
+              ['[M'] = { query = '@function.outer', desc = 'Prev method/function def end' },
+              ['[C'] = { query = '@class.outer', desc = 'Prev class end' },
+              ['[I'] = { query = '@conditional.outer', desc = 'Prev conditional end' },
+              ['[L'] = { query = '@loop.outer', desc = 'Prev loop end' },
+            },
+          },
+        },
+      }
+
+      local ts_repeat_move = require 'nvim-treesitter.textobjects.repeatable_move'
+
+      -- vim way: ; goes to the direction you were moving.
+      vim.keymap.set({ 'n', 'x', 'o' }, ';', ts_repeat_move.repeat_last_move)
+      vim.keymap.set({ 'n', 'x', 'o' }, ',', ts_repeat_move.repeat_last_move_opposite)
+    end,
+  },
 
   { -- Collection of various small independent plugins/modules
     'echasnovski/mini.nvim',
@@ -882,14 +1025,8 @@ require('lazy').setup({
       --  - va)  - [V]isually select [A]round [)]paren
       --  - yinq - [Y]ank [I]nside [N]ext [Q]uote
       --  - ci'  - [C]hange [I]nside [']quote
-      require('mini.ai').setup { n_lines = 500 }
-
-      -- Add/delete/replace surroundings (brackets, quotes, etc.)
-      --
-      -- - saiw) - [S]urround [A]dd [I]nner [W]ord [)]Paren
-      -- - sd'   - [S]urround [D]elete [']quotes
-      -- - sr)'  - [S]urround [R]eplace [)] [']
-      require('mini.surround').setup()
+      -- Gage: in favor of text objects above
+      -- require('mini.ai').setup { n_lines = 500 }
 
       -- Simple and easy statusline.
       --  You could remove this setup call if you don't like it,
@@ -932,6 +1069,18 @@ require('lazy').setup({
     -- with nvim-treesitter. You should go explore a few and see what interests you:
     --
     --    - Incremental selection: Included, see `:help nvim-treesitter-incremental-selection-mod`
+    --
+
+    incremental_selection = {
+      enable = true,
+      keymaps = {
+        init_selection = '<C-space>',
+        node_incremental = '<C-space>',
+        scope_incremental = false,
+        node_decremental = '<bs>',
+      },
+    },
+
     --    - Show your current context: https://github.com/nvim-treesitter/nvim-treesitter-context
     --    - Treesitter + textobjects: https://github.com/nvim-treesitter/nvim-treesitter-textobjects
   },
@@ -976,7 +1125,34 @@ require('lazy').setup({
     -- Lazy loading is not recommended because it is very tricky to make it work correctly in all situations.
     lazy = false,
     config = function()
-      require('oil').setup()
+      local oil = require 'oil'
+      oil.setup {
+        keymaps = {
+          -- create a new mapping, gs, to search and replace in the current directory
+          gs = {
+            callback = function()
+              -- get the current directory
+              local prefills = { paths = oil.get_current_dir() }
+
+              local grug_far = require 'grug-far'
+              -- instance check
+              if not grug_far.has_instance 'explorer' then
+                grug_far.open {
+                  instanceName = 'explorer',
+                  prefills = prefills,
+                  staticTitle = 'Find and Replace from Explorer',
+                }
+              else
+                grug_far.get_instance('explorer'):open()
+                -- updating the prefills without clearing the search and other fields
+                grug_far.get_instance('explorer'):update_input_values(prefills, false)
+              end
+            end,
+            desc = 'oil: Search in directory',
+          },
+        },
+      }
+
       vim.keymap.set('n', '-', '<CMD>Oil<CR>', { desc = 'Open parent directory' })
     end,
   },
@@ -1012,38 +1188,119 @@ require('lazy').setup({
     event = 'VeryLazy',
     opts = {},
   },
+
+  {
+    'ray-x/go.nvim',
+    dependencies = { -- optional packages
+      'ray-x/guihua.lua',
+      'neovim/nvim-lspconfig',
+      'nvim-treesitter/nvim-treesitter',
+    },
+    opts = {
+      -- lsp_keymaps = false,
+      -- other options
+    },
+    config = function(_lp, opts)
+      require('go').setup(opts)
+      local format_sync_grp = vim.api.nvim_create_augroup('GoFormat', {})
+      vim.api.nvim_create_autocmd('BufWritePre', {
+        pattern = '*.go',
+        callback = function()
+          require('go.format').goimports()
+        end,
+        group = format_sync_grp,
+      })
+    end,
+    event = { 'CmdlineEnter' },
+    ft = { 'go', 'gomod' },
+    build = ':lua require("go.install").update_all_sync()', -- if you need to install/update all binaries
+  },
+
+  -- smart open -- AKA VSCODE stuff
+  {
+    'danielfalk/smart-open.nvim',
+    branch = '0.2.x',
+    config = function()
+      require('telescope').load_extension 'smart_open'
+    end,
+    dependencies = {
+      'kkharji/sqlite.lua',
+      -- Only required if using match_algorithm fzf
+      { 'nvim-telescope/telescope-fzf-native.nvim', build = 'make' },
+      -- Optional.  If installed, native fzy will be used when match_algorithm is fzy
+      { 'nvim-telescope/telescope-fzy-native.nvim' },
+    },
+  },
+
+  {
+    {
+      'FabijanZulj/blame.nvim',
+      lazy = false,
+      config = function()
+        require('blame').setup {}
+      end,
+    },
+  },
+
+  {
+    'MagicDuck/grug-far.nvim',
+    -- Note (lazy loading): grug-far.lua defers all it's requires so it's lazy by default
+    -- additional lazy config to defer loading is not really needed...
+    config = function()
+      -- optional setup call to override plugin options
+      -- alternatively you can set options with vim.g.grug_far = { ... }
+      local grug_far = require 'grug-far'
+      grug_far.setup {
+        -- options, see Configuration section below
+        -- there are no required options atm
+      }
+
+      -- serach for under the cursor
+      vim.keymap.set({ 'n', 'x' }, '<leader>fw', function()
+        local search = vim.fn.getreg '/'
+        -- surround with \b if "word" search (such as when pressing `*`)
+        if search and vim.startswith(search, '\\<') and vim.endswith(search, '\\>') then
+          search = '\\b' .. search:sub(3, -3) .. '\\b'
+        end
+        require('grug-far').open {
+          prefills = {
+            search = search,
+          },
+        }
+      end, { desc = 'grug-far: Search using @/ register value or visual selection' })
+    end,
+  },
+
+  {
+    'f-person/git-blame.nvim',
+    -- load the plugin at startup
+    event = 'VeryLazy',
+    -- Because of the keys part, you will be lazy loading this plugin.
+    -- The plugin will only load once one of the keys is used.
+    -- If you want to load the plugin at startup, add something like event = "VeryLazy",
+    -- or lazy = false. One of both options will work.
+    opts = {
+      -- your configuration comes here
+      -- for example
+      enabled = true, -- if you want to enable the plugin
+      message_template = '<author> • <summary> • <date> • <<sha>>', -- template for the blame message, check the Message template section for more options
+      date_format = '%r - %m-%d-%Y %H:%M:%S', -- template for the date, check Date format section for more options
+      virtual_text_column = 1, -- virtual text start column, check Start virtual text at column section for more options
+    },
+  },
+
+  {
+    'zaldih/themery.nvim',
+    lazy = false,
+    config = function()
+      require('themery').setup {
+        -- add the config here
+      }
+    end,
+  },
   -- END OF PLUGINS
 }, {
   ui = {},
 })
-
-function vim.getVisualSelection()
-  local current_clipboard_content = vim.fn.getreg '"'
-
-  vim.cmd 'noau normal! "vy"'
-  local text = vim.fn.getreg 'v'
-  vim.fn.setreg('v', {})
-
-  vim.fn.setreg('"', current_clipboard_content)
-
-  text = string.gsub(text, '\n', '')
-  if #text > 0 then
-    return text
-  else
-    return ''
-  end
-end
-
--- Telescope help
-local keymap = vim.keymap.set
-local tb = require 'telescope.builtin'
-local opts = { noremap = true, silent = true }
-
-keymap('n', '<leader>fw', ':Telescope live_grep<cr>', opts)
-keymap('v', '<leader>fw', function()
-  local text = vim.getVisualSelection()
-  tb.grep_string { search = text }
-end, opts)
-
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et
