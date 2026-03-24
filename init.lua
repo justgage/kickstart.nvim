@@ -123,7 +123,7 @@ vim.o.wrap = false
 
 -- Clear highlights on search when pressing <Esc> in normal mode
 --  See `:help hlsearch`
-vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
+-- vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
 
 -- Diagnostic keymaps
 vim.keymap.set('n', '<leader>eq', vim.diagnostic.setloclist, { desc = 'Open diagnostic [Q]uickfix list' })
@@ -203,7 +203,7 @@ require('lazy').setup({
   {
     'NMAC427/guess-indent.nvim', -- Detect tabstop and shiftwidth automatically
     lazy = false,
-    config = function(self, opts)
+    config = function()
       local guess = require 'guess-indent'
       guess:setup()
     end,
@@ -395,6 +395,7 @@ require('lazy').setup({
       vim.keymap.set('n', '<leader>fg', ":lua require('telescope').extensions.live_grep_args.live_grep_args()<CR>")
       vim.keymap.set('n', '<leader>fa', ':lua require(\'telescope\').extensions.live_grep_args.live_grep_args("app")<CR>')
       vim.keymap.set('n', '<leader>fd', builtin.diagnostics, { desc = '[F]ind [D]iagnostics' })
+      vim.keymap.set('n', '<leader>df', builtin.diagnostics, { desc = '[D]iagnostics [F]ind' })
       vim.keymap.set('n', '<leader>fr', builtin.resume, { desc = '[F]ind [R]esume' })
       vim.keymap.set('n', '<leader>fo', builtin.oldfiles, { desc = '[F]ind [O]ld' })
 
@@ -425,7 +426,9 @@ require('lazy').setup({
 
       -- Shortcut for searching your Neovim configuration files
       vim.keymap.set('n', ',v', function()
-        builtin.find_files { cwd = vim.fn.stdpath 'config' }
+        builtin.find_files {
+          cwd = vim.fn.stdpath 'config',
+        }
       end, { desc = '[S]earch [N]eovim files' })
 
       -- local lga_shortcuts = require 'telescope-live-grep-args.shortcuts'
@@ -594,7 +597,7 @@ require('lazy').setup({
           --
           -- This may be unwanted, since they displace some of your code
           if client and client_supports_method(client, vim.lsp.protocol.Methods.textDocument_inlayHint, event.buf) then
-            map('<leader>th', function()
+            map('<leader>dh', function()
               vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled { bufnr = event.buf })
             end, '[T]oggle Inlay [H]ints')
           end
@@ -603,32 +606,32 @@ require('lazy').setup({
 
       -- Diagnostic Config
       -- See :help vim.diagnostic.Opts
-      vim.diagnostic.config {
-        severity_sort = true,
-        float = { border = 'rounded', source = 'if_many' },
-        underline = { severity = vim.diagnostic.severity.ERROR },
-        signs = vim.g.have_nerd_font and {
-          text = {
-            [vim.diagnostic.severity.ERROR] = '󰅚 ',
-            [vim.diagnostic.severity.WARN] = '󰀪 ',
-            [vim.diagnostic.severity.INFO] = '󰋽 ',
-            [vim.diagnostic.severity.HINT] = '󰌶 ',
-          },
-        } or {},
-        virtual_text = {
-          source = 'if_many',
-          spacing = 2,
-          format = function(diagnostic)
-            local diagnostic_message = {
-              [vim.diagnostic.severity.ERROR] = diagnostic.message,
-              [vim.diagnostic.severity.WARN] = diagnostic.message,
-              [vim.diagnostic.severity.INFO] = diagnostic.message,
-              [vim.diagnostic.severity.HINT] = diagnostic.message,
-            }
-            return diagnostic_message[diagnostic.severity]
-          end,
-        },
-      }
+      -- vim.diagnostic.config {
+      --   severity_sort = true,
+      --   float = { border = 'rounded', source = 'if_many' },
+      --   underline = { severity = vim.diagnostic.severity.ERROR },
+      --   signs = vim.g.have_nerd_font and {
+      --     text = {
+      --       [vim.diagnostic.severity.ERROR] = '󰅚 ',
+      --       [vim.diagnostic.severity.WARN] = '󰀪 ',
+      --       [vim.diagnostic.severity.INFO] = '󰋽 ',
+      --       [vim.diagnostic.severity.HINT] = '󰌶 ',
+      --     },
+      --   } or {},
+      --   virtual_text = {
+      --     source = 'if_many',
+      --     spacing = 2,
+      --     format = function(diagnostic)
+      --       local diagnostic_message = {
+      --         [vim.diagnostic.severity.ERROR] = diagnostic.message,
+      --         [vim.diagnostic.severity.WARN] = diagnostic.message,
+      --         [vim.diagnostic.severity.INFO] = diagnostic.message,
+      --         [vim.diagnostic.severity.HINT] = diagnostic.message,
+      --       }
+      --       return diagnostic_message[diagnostic.severity]
+      --     end,
+      --   },
+      -- }
 
       -- LSP servers and clients are able to communicate to each other what features they support.
       --  By default, Neovim doesn't support everything that is in the LSP specification.
@@ -837,6 +840,7 @@ require('lazy').setup({
           lazydev = { module = 'lazydev.integrations.blink', score_offset = 100 },
           ripgrep = {
             module = 'blink-ripgrep',
+            score_offset = 1,
             name = 'Ripgrep',
             -- see the full configuration below for all available options
             ---@module "blink-ripgrep"
@@ -855,44 +859,14 @@ require('lazy').setup({
       -- the rust implementation via `'prefer_rust_with_warning'`
       --
       -- See :h blink-cmp-config-fuzzy for more information
-      fuzzy = { implementation = 'lua' },
+      fuzzy = { implementation = 'prefer_rust_with_warning' },
 
       -- Shows a signature help window while you type arguments for a function
       signature = { enabled = true },
     },
   },
 
-  {
-    'uhs-robert/oasis.nvim',
-    lazy = false,
-    priority = 1000,
-    config = function()
-      require('oasis').setup() -- (see Configuration below for all customization options)
-      vim.cmd.colorscheme 'oasis' -- After setup, apply theme (or any style like "oasis-night")
-    end,
-  },
-
-  { -- You can easily change to a different colorscheme.
-    -- Change the name of the colorscheme plugin below, and then
-    -- change the command in the config to whatever the name of that colorscheme is.
-    --
-    -- If you want to see what colorschemes are already installed, you can use `:Telescope colorscheme`.
-    'folke/tokyonight.nvim',
-    priority = 1000, -- Make sure to load this before all the other start plugins.
-    config = function()
-      ---@diagnostic disable-next-line: missing-fields
-      require('tokyonight').setup {
-        styles = {
-          comments = { italic = false }, -- Disable italics in comments
-        },
-      }
-
-      -- Load the colorscheme here.
-      -- Like many other themes, this one has different styles, and you could load
-      -- any other, such as 'tokyonight-storm', 'tokyonight-moon', or 'tokyonight-day'.
-      -- vim.cmd.colorscheme 'tokyonight-night'
-    end,
-  },
+  -- Colorschemes are now loaded from lua/custom/plugins/colorschemes.lua
 
   -- Highlight todo, notes, etc in comments
   { 'folke/todo-comments.nvim', event = 'VimEnter', dependencies = { 'nvim-lua/plenary.nvim' }, opts = { signs = false } },
@@ -910,7 +884,7 @@ require('lazy').setup({
 
   {
     'nvim-treesitter/nvim-treesitter-textobjects',
-    lazy = true,
+    lazy = false,
     config = function()
       ---@diagnostic disable-next-line: missing-fields
       require('nvim-treesitter.configs').setup {
@@ -1200,7 +1174,7 @@ require('lazy').setup({
       -- lsp_keymaps = false,
       -- other options
     },
-    config = function(_lp, opts)
+    config = function(_, opts)
       require('go').setup(opts)
       local format_sync_grp = vim.api.nvim_create_augroup('GoFormat', {})
       vim.api.nvim_create_autocmd('BufWritePre', {
@@ -1232,14 +1206,45 @@ require('lazy').setup({
     },
   },
 
+  -- Inline Blame
+  {
+    'f-person/git-blame.nvim',
+    -- load the plugin at startup
+    event = 'VeryLazy',
+    -- Because of the keys part, you will be lazy loading this plugin.
+    -- The plugin will only load once one of the keys is used.
+    -- If you want to load the plugin at startup, add something like event = "VeryLazy",
+    -- or lazy = false. One of both options will work.
+    opts = {
+      -- your configuration comes here
+      -- for example
+      enabled = true, -- if you want to enable the plugin
+      message_template = '<author> • <summary> • <date> • <<sha>>', -- template for the blame message, check the Message template section for more options
+      date_format = '%r - %m-%d-%Y %H:%M:%S', -- template for the date, check Date format section for more options
+      virtual_text_column = 1, -- virtual text start column, check Start virtual text at column section for more options
+    },
+  },
+
+  -- Blame WINDOW
   {
     {
       'FabijanZulj/blame.nvim',
       lazy = false,
       config = function()
+        ---@diagnostic disable-next-line: missing-fields
         require('blame').setup {}
       end,
     },
+  },
+
+  {
+    'yarospace/lua-console.nvim',
+    lazy = true,
+    keys = {
+      { '`', desc = 'Lua-console - toggle' },
+      { '<Leader>`', desc = 'Lua-console - attach to buffer' },
+    },
+    opts = {},
   },
 
   {
@@ -1262,31 +1267,23 @@ require('lazy').setup({
         if search and vim.startswith(search, '\\<') and vim.endswith(search, '\\>') then
           search = '\\b' .. search:sub(3, -3) .. '\\b'
         end
-        require('grug-far').open {
-          prefills = {
-            search = search,
-          },
-        }
+
+        local prefills = { search = search }
+
+        -- instance check
+        if not grug_far.has_instance 'explorer' then
+          grug_far.open {
+            instanceName = 'explorer',
+            prefills = prefills,
+            staticTitle = 'Find and Replace from Explorer',
+          }
+        else
+          grug_far.get_instance('explorer'):open()
+          -- updating the prefills without clearing the search and other fields
+          grug_far.get_instance('explorer'):update_input_values(prefills, false)
+        end
       end, { desc = 'grug-far: Search using @/ register value or visual selection' })
     end,
-  },
-
-  {
-    'f-person/git-blame.nvim',
-    -- load the plugin at startup
-    event = 'VeryLazy',
-    -- Because of the keys part, you will be lazy loading this plugin.
-    -- The plugin will only load once one of the keys is used.
-    -- If you want to load the plugin at startup, add something like event = "VeryLazy",
-    -- or lazy = false. One of both options will work.
-    opts = {
-      -- your configuration comes here
-      -- for example
-      enabled = true, -- if you want to enable the plugin
-      message_template = '<author> • <summary> • <date> • <<sha>>', -- template for the blame message, check the Message template section for more options
-      date_format = '%r - %m-%d-%Y %H:%M:%S', -- template for the date, check Date format section for more options
-      virtual_text_column = 1, -- virtual text start column, check Start virtual text at column section for more options
-    },
   },
 
   {
@@ -1294,10 +1291,142 @@ require('lazy').setup({
     lazy = false,
     config = function()
       require('themery').setup {
-        -- add the config here
+        themes = {
+          { name = 'Tokyo Night', colorscheme = 'tokyonight' },
+          { name = 'Tokyo Night Storm', colorscheme = 'tokyonight-storm' },
+          { name = 'Tokyo Night Moon', colorscheme = 'tokyonight-moon' },
+          { name = 'Tokyo Night Day', colorscheme = 'tokyonight-day' },
+          { name = 'Catppuccin Mocha', colorscheme = 'catppuccin-mocha' },
+          { name = 'Catppuccin Macchiato', colorscheme = 'catppuccin-macchiato' },
+          { name = 'Catppuccin Frappe', colorscheme = 'catppuccin-frappe' },
+          { name = 'Catppuccin Latte', colorscheme = 'catppuccin-latte' },
+          { name = 'Rose Pine', colorscheme = 'rose-pine' },
+          { name = 'Rose Pine Moon', colorscheme = 'rose-pine-moon' },
+          { name = 'Rose Pine Dawn', colorscheme = 'rose-pine-dawn' },
+          { name = 'Gruvbox Dark', colorscheme = 'gruvbox' },
+          { name = 'Nord', colorscheme = 'nord' },
+          { name = 'Kanagawa Wave', colorscheme = 'kanagawa-wave' },
+          { name = 'Kanagawa Dragon', colorscheme = 'kanagawa-dragon' },
+          { name = 'Kanagawa Lotus', colorscheme = 'kanagawa-lotus' },
+          { name = 'Nightfox', colorscheme = 'nightfox' },
+          { name = 'Dayfox', colorscheme = 'dayfox' },
+          { name = 'Dawnfox', colorscheme = 'dawnfox' },
+          { name = 'Duskfox', colorscheme = 'duskfox' },
+          { name = 'Nordfox', colorscheme = 'nordfox' },
+          { name = 'Terafox', colorscheme = 'terafox' },
+          { name = 'Carbonfox', colorscheme = 'carbonfox' },
+          { name = 'Everforest', colorscheme = 'everforest' },
+          { name = 'Dracula', colorscheme = 'dracula' },
+          { name = 'One Dark', colorscheme = 'onedark' },
+          { name = 'Solarized Osaka', colorscheme = 'solarized-osaka' },
+          { name = 'Material', colorscheme = 'material' },
+          { name = 'Oasis', colorscheme = 'oasis' },
+          { name = 'Monokai Pro', colorscheme = 'monokai-pro' },
+          { name = 'Cyberdream', colorscheme = 'cyberdream' },
+          { name = 'Melange', colorscheme = 'melange' },
+          { name = 'yorumi', colorscheme = 'yorumi' },
+        },
+        livePreview = true, -- Live preview when cycling through themes
       }
+
+      -- Set up the keybinding for theme switcher
+      vim.keymap.set('n', '<leader>th', '<cmd>Themery<cr>', { desc = '[Th]eme Switcher' })
     end,
   },
+
+  {
+    'BadgerBloke/diagnostic-float.nvim',
+    dependencies = { 'neovim/nvim-lspconfig' },
+    opts = {
+      enabled = true,
+      delay = 100,
+      toggle_key = '<C-i>',
+      leader_command = 'd',
+    },
+    keys = {
+      {
+        '<leader>do',
+        function()
+          vim.diagnostic.open_float()
+        end,
+        desc = 'Diagnostic: goto floating window',
+      },
+      {
+        '<leader>p',
+        function()
+          vim.diagnostic.goto_prev()
+        end,
+        desc = 'Diagnostic: previous',
+      },
+      {
+        '<leader>n',
+        function()
+          vim.diagnostic.goto_next()
+        end,
+        desc = 'DESCRIPTION',
+      },
+
+      {
+        '<leader>dt',
+        function() end,
+      },
+
+      {
+        '<leader>ee',
+        function()
+          require('diagnostic-float').show_diagnostic_float()
+        end,
+        desc = 'Show diagnostic',
+      },
+      {
+        '<leader>et',
+        function()
+          require('diagnostic-float').toggle()
+        end,
+        desc = 'Toggle diagnostic',
+      },
+      {
+        '<C-i>',
+        function()
+          require('diagnostic-float').show_diagnostic_float()
+        end,
+        desc = 'Show diagnostic',
+      },
+      {
+        '<leader>xd',
+        function()
+          require('diagnostic-float').toggle()
+        end,
+        desc = 'Toggle diagnostic',
+      },
+    },
+  },
+
+  -- MIGHT want to
+  -- {
+  --   'neovim/nvim-lspconfig',
+  --   opts = { diagnostics = { virtual_text = false } },
+  -- },
+
+  -- {
+  --   {
+  --     'rachartier/tiny-inline-diagnostic.nvim',
+  --     event = 'VeryLazy',
+  --     priority = 1000,
+  --     opts = {},
+  --     config = function(a, b)
+  --       require('tiny-inline-diagnostic').setup {}
+  --       vim.keymap.set('n', '<leader>et', '<cmd>TinyInlineDiag toggle<cr>', { desc = 'Toggle diagnostics' })
+  --       vim.keymap.set('n', '<leader>ec', '<cmd>TinyInlineDiag toggle_cursor_only<cr>', { desc = 'Toggle cursor-only diagnostics' })
+  --       vim.keymap.set('n', '<leader>er', '<cmd>TinyInlineDiag reset<cr>', { desc = 'Reset diagnostic options' })
+  --     end,
+  --   },
+  --   {
+  --     'neovim/nvim-lspconfig',
+  --     opts = { diagnostics = { virtual_text = false } },
+  --   },
+  -- },
+
   -- END OF PLUGINS
 }, {
   ui = {},

@@ -1,1 +1,3 @@
-vim.cmd("colorscheme rose-pine-moon")
+-- Default theme (optional - themery will manage theme switching)
+-- You can uncomment this to set a default theme or let themery handle it
+-- vim.cmd("colorscheme rose-pine-moon")
