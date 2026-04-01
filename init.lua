@@ -127,6 +127,9 @@ vim.o.wrap = false
 
 -- Diagnostic keymaps
 vim.keymap.set('n', '<leader>eq', vim.diagnostic.setloclist, { desc = 'Open diagnostic [Q]uickfix list' })
+vim.keymap.set('n', '<leader>dd', function()
+  vim.diagnostic.enable(not vim.diagnostic.is_enabled())
+end, { desc = '[D]iagnostic [D]isable/Enable' })
 
 -- Exit terminal mode in the builtin terminal with a shortcut that is a bit easier
 -- for people to discover. Otherwise, you normally need to press <C-\><C-n>, which
@@ -606,32 +609,32 @@ require('lazy').setup({
 
       -- Diagnostic Config
       -- See :help vim.diagnostic.Opts
-      -- vim.diagnostic.config {
-      --   severity_sort = true,
-      --   float = { border = 'rounded', source = 'if_many' },
-      --   underline = { severity = vim.diagnostic.severity.ERROR },
-      --   signs = vim.g.have_nerd_font and {
-      --     text = {
-      --       [vim.diagnostic.severity.ERROR] = '󰅚 ',
-      --       [vim.diagnostic.severity.WARN] = '󰀪 ',
-      --       [vim.diagnostic.severity.INFO] = '󰋽 ',
-      --       [vim.diagnostic.severity.HINT] = '󰌶 ',
-      --     },
-      --   } or {},
-      --   virtual_text = {
-      --     source = 'if_many',
-      --     spacing = 2,
-      --     format = function(diagnostic)
-      --       local diagnostic_message = {
-      --         [vim.diagnostic.severity.ERROR] = diagnostic.message,
-      --         [vim.diagnostic.severity.WARN] = diagnostic.message,
-      --         [vim.diagnostic.severity.INFO] = diagnostic.message,
-      --         [vim.diagnostic.severity.HINT] = diagnostic.message,
-      --       }
-      --       return diagnostic_message[diagnostic.severity]
-      --     end,
-      --   },
-      -- }
+      vim.diagnostic.config {
+        severity_sort = true,
+        float = { border = 'rounded', source = 'if_many' },
+        underline = { severity = vim.diagnostic.severity.ERROR },
+        signs = vim.g.have_nerd_font and {
+          text = {
+            [vim.diagnostic.severity.ERROR] = '󰅚 ',
+            [vim.diagnostic.severity.WARN] = '󰀪 ',
+            [vim.diagnostic.severity.INFO] = '󰋽 ',
+            [vim.diagnostic.severity.HINT] = '󰌶 ',
+          },
+        } or {},
+        virtual_text = {
+          source = 'if_many',
+          spacing = 2,
+          format = function(diagnostic)
+            local diagnostic_message = {
+              [vim.diagnostic.severity.ERROR] = diagnostic.message,
+              [vim.diagnostic.severity.WARN] = diagnostic.message,
+              [vim.diagnostic.severity.INFO] = diagnostic.message,
+              [vim.diagnostic.severity.HINT] = diagnostic.message,
+            }
+            return diagnostic_message[diagnostic.severity]
+          end,
+        },
+      }
 
       -- LSP servers and clients are able to communicate to each other what features they support.
       --  By default, Neovim doesn't support everything that is in the LSP specification.
@@ -1005,22 +1008,125 @@ require('lazy').setup({
       -- Simple and easy statusline.
       --  You could remove this setup call if you don't like it,
       --  and try some other statusline plugin
-      local statusline = require 'mini.statusline'
-      -- set use_icons to true if you have a Nerd Font
-      statusline.setup { use_icons = vim.g.have_nerd_font }
+      -- local statusline = require 'mini.statusline'
+      -- -- set use_icons to true if you have a Nerd Font
+      -- statusline.setup { use_icons = vim.g.have_nerd_font }
 
       -- You can configure sections in the statusline by overriding their
       -- default behavior. For example, here we set the section for
       -- cursor location to LINE:COLUMN
       ---@diagnostic disable-next-line: duplicate-set-field
-      statusline.section_location = function()
-        return '%2l:%-2v'
-      end
+      -- statusline.section_location = function()
+      --   return '%2l:%-2v'
+      -- end
 
       -- ... and there is more!
       --  Check out: https://github.com/echasnovski/mini.nvim
     end,
   },
+
+  {
+    'akinsho/bufferline.nvim',
+    lazy = false,
+    config = function()
+      local bufferline = require 'bufferline'
+      bufferline.setup {
+
+        options = {
+          style_preset = bufferline.style_preset.default, -- or bufferline.style_preset.minimal,
+          separator_style = 'slant',
+          themable = true,
+          indicator = { style = 'none' },
+        },
+      }
+    end,
+  },
+
+  {
+    'nvim-lualine/lualine.nvim',
+    lazy = false,
+    dependencies = { 'nvim-tree/nvim-web-devicons' },
+    config = function()
+      -- https://github.com/nvim-lualine/lualine.nvim/blob/master/examples/bubbles.lua
+      local colors = {
+        blue = '#80a0ff',
+        cyan = '#79dac8',
+        black = '#080808',
+        white = '#c6c6c6',
+        red = '#ff5189',
+        violet = '#d183e8',
+        grey = '#303030',
+      }
+
+      local bubbles_theme = {
+        normal = {
+          a = { fg = colors.black, bg = colors.violet },
+          b = { fg = colors.black, bg = colors.cyan },
+          c = { fg = colors.white },
+        },
+
+        insert = { a = { fg = colors.black, bg = colors.blue } },
+        visual = { a = { fg = colors.black, bg = colors.cyan } },
+        replace = { a = { fg = colors.black, bg = colors.red } },
+
+        inactive = {
+          a = { fg = colors.white, bg = colors.black },
+          b = { fg = colors.white, bg = colors.black },
+          c = { fg = colors.white },
+        },
+      }
+
+      require('lualine').setup {
+        options = {
+          theme = bubbles_theme,
+          component_separators = '',
+          section_separators = { left = '', right = '' },
+        },
+        sections = {
+          lualine_a = { { 'filename', separator = { left = '', right = '' }, right_padding = 2 } },
+          -- lualine_a = { 'filename' },
+          lualine_b = {},
+          lualine_c = {
+            '%=', --[[ add your center components here in place of this comment ]]
+          },
+          lualine_x = {},
+
+          lualine_y = {},
+          lualine_z = {
+            'filetype',
+            -- { 'location', separator = { right = '' }, left_padding = 2 },
+            {
+              'lsp_status',
+              icon = '', -- f013
+              symbols = {
+                -- Standard unicode symbols to cycle through for LSP progress:
+                spinner = { '⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏' },
+                -- Standard unicode symbol for when LSP is done:
+                done = '✓',
+                -- Delimiter inserted between LSP names:
+                separator = ' ',
+              },
+              -- List of LSP names to ignore (e.g., `null-ls`):
+              ignore_lsp = {},
+              -- Display the LSP name
+              show_name = true,
+            },
+          },
+        },
+        inactive_sections = {
+          lualine_a = { 'filename' },
+          lualine_b = {},
+          lualine_c = {},
+          lualine_x = {},
+          lualine_y = {},
+          lualine_z = { 'location' },
+        },
+        tabline = {},
+        extensions = {},
+      }
+    end,
+  },
+
   { -- Highlight, edit, and navigate code
     'nvim-treesitter/nvim-treesitter',
     build = ':TSUpdate',
@@ -1330,7 +1436,7 @@ require('lazy').setup({
       }
 
       -- Set up the keybinding for theme switcher
-      vim.keymap.set('n', '<leader>th', '<cmd>Themery<cr>', { desc = '[Th]eme Switcher' })
+      vim.keymap.set('n', '<leader>th', '<cmd>GhosttyTheme<cr>', { desc = '[Th]eme Switcher' })
     end,
   },
 
@@ -1402,6 +1508,16 @@ require('lazy').setup({
     },
   },
 
+  {
+    'nxhung2304/lastplace.nvim',
+    lazy = false,
+    config = function()
+      require('lastplace').setup {
+        -- your configuration here
+      }
+    end,
+  },
+
   -- MIGHT want to
   -- {
   --   'neovim/nvim-lspconfig',
@@ -1427,6 +1543,7 @@ require('lazy').setup({
   --   },
   -- },
 
+  { 'akinsho/toggleterm.nvim', version = '*', config = true },
   -- END OF PLUGINS
 }, {
   ui = {},
