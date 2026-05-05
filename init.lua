@@ -1073,7 +1073,60 @@ require('lazy').setup({
 
       -- Custom filename component: icon + bright basename + muted full path.
       local devicons = require 'nvim-web-devicons'
-      local function fancy_filename()
+
+      -- Rounded Powerline edges for the browser-tab look.
+      -- (defined as constants so the edit tool doesn't strip the high-bit chars)
+      local TAB_LEFT  = ''  -- U+E0B6 left half-circle (filled)
+      local TAB_RIGHT = ''  -- U+E0B4 right half-circle (filled)
+
+      -- Shrink each intermediate directory to its first character so long
+      -- paths don't overwhelm: lua/custom/plugins/foo.lua -> l/c/p/foo.lua
+      local function shrink_path(dir)
+        if dir == '' or dir == '.' then return '' end
+        local parts = {}
+        for part in string.gmatch(dir, '[^/]+') do
+          table.insert(parts, part)
+        end
+        local out = {}
+        for i, part in ipairs(parts) do
+          -- Keep the last directory segment intact, shrink the rest.
+          if i == #parts then
+            table.insert(out, part)
+          else
+            table.insert(out, part:sub(1, 1))
+          end
+        end
+        return table.concat(out, '/')
+      end
+
+      -- Truncate a string from the left, prepending an ellipsis.
+      local function ltrunc(s, max)
+        local w = vim.fn.strdisplaywidth(s)
+        if w <= max then return s end
+        if max <= 1 then return '…' end
+        -- Drop characters from the front until it fits, then prepend ellipsis.
+        local out = s
+        while vim.fn.strdisplaywidth(out) > max - 1 do
+          out = out:sub(2)
+          if out == '' then break end
+        end
+        return '…' .. out
+      end
+
+      -- Truncate a string from the right, appending an ellipsis.
+      local function rtrunc(s, max)
+        local w = vim.fn.strdisplaywidth(s)
+        if w <= max then return s end
+        if max <= 1 then return '…' end
+        local out = s
+        while vim.fn.strdisplaywidth(out) > max - 1 do
+          out = out:sub(1, -2)
+          if out == '' then break end
+        end
+        return out .. '…'
+      end
+
+      local function render_filename(active)
         local full = vim.fn.expand('%:p')
         if full == '' then return '[No Name]' end
 
@@ -1084,35 +1137,88 @@ require('lazy').setup({
         local icon = devicons.get_icon(name, ext, { default = true }) or ''
 
         local modified = vim.bo.modified and ' ●' or ''
-        local readonly = (vim.bo.readonly or not vim.bo.modifiable) and ' ' or ''
+        local readonly = active and (vim.bo.readonly or not vim.bo.modifiable) and ' ' or ''
 
-        local path_part = (dir == '' or dir == '.') and ''
-          or ('  %#WinBarPath#' .. dir .. '%*')
+        local tab_hl  = active and 'WinBarTab'     or 'WinBarTabNC'
+        local edge_hl = active and 'WinBarTabEdge' or 'WinBarTabEdgeNC'
+        local path_hl = active and 'WinBarPath'    or 'WinBarPathNC'
 
-        return '%#WinBarFile#' .. icon .. ' ' .. name .. modified .. readonly .. path_part
+        local width = vim.api.nvim_win_get_width(0)
+
+        -- Pill chrome: 2 rounded edge glyphs + 2 inner spaces + icon + space.
+        local edges      = 2
+        local inner_pad  = 2
+        local icon_w     = vim.fn.strdisplaywidth(icon) + 1
+        local mod_w      = vim.fn.strdisplaywidth(modified .. readonly)
+        local chrome     = edges + inner_pad + icon_w + mod_w
+
+        -- Reserve at least 8 cols for the filename, give the rest to path (with 2-col gap).
+        local pill_name_budget = math.max(6, math.floor(width * 0.5) - chrome)
+        local shown_name = rtrunc(name, pill_name_budget)
+        local pill_w = chrome + vim.fn.strdisplaywidth(shown_name)
+
+        local path_budget = width - pill_w - 3 -- 2-col gap + 1 safety
+        local path_part = ''
+        if dir ~= '' and dir ~= '.' and path_budget >= 4 then
+          local shown
+          if path_budget >= vim.fn.strdisplaywidth(dir) then
+            shown = dir
+          elseif path_budget >= vim.fn.strdisplaywidth(shrink_path(dir)) then
+            shown = shrink_path(dir)
+          else
+            shown = ltrunc(shrink_path(dir), path_budget)
+          end
+          path_part = '  %#' .. path_hl .. '#' .. shown .. '%*'
+        end
+
+        -- Render as a browser-tab-like pill with rounded Powerline edges.
+        return table.concat {
+          '%#', edge_hl, '#', TAB_LEFT,
+          '%#', tab_hl,  '# ', icon, ' ', shown_name, modified, readonly, ' ',
+          '%#', edge_hl, '#', TAB_RIGHT,
+          '%*',
+          path_part,
+        }
       end
 
-      local function fancy_filename_inactive()
-        local full = vim.fn.expand('%:p')
-        if full == '' then return '[No Name]' end
-        local rel  = vim.fn.fnamemodify(full, ':.')
-        local dir  = vim.fn.fnamemodify(rel, ':h')
-        local name = vim.fn.fnamemodify(rel, ':t')
-        local ext  = vim.fn.fnamemodify(name, ':e')
-        local icon = devicons.get_icon(name, ext, { default = true }) or ''
-        local modified = vim.bo.modified and ' ●' or ''
-        local path_part = (dir == '' or dir == '.') and ''
-          or ('  %#WinBarPathNC#' .. dir .. '%*')
-        return '%#WinBarFileNC#' .. icon .. ' ' .. name .. modified .. path_part
-      end
+      local function fancy_filename()          return render_filename(true)  end
+      local function fancy_filename_inactive() return render_filename(false) end
 
       -- Highlight groups for the winbar filename split.
       -- Re-applied on ColorScheme so they survive theme switches.
       local function set_winbar_hl()
-        vim.api.nvim_set_hl(0, 'WinBarPath',   { fg = '#888899', italic = true })
-        vim.api.nvim_set_hl(0, 'WinBarFile',   { fg = '#ffffff', bold = true })
-        vim.api.nvim_set_hl(0, 'WinBarPathNC', { fg = '#5a5a66', italic = true })
-        vim.api.nvim_set_hl(0, 'WinBarFileNC', { fg = '#9a9aa6' })
+        -- Pull theme accent + base colors so the tab matches the colorscheme.
+        local function hl_attr(groups, attr, fallback)
+          for _, g in ipairs(groups) do
+            local ok, hl = pcall(vim.api.nvim_get_hl, 0, { name = g, link = false })
+            if ok and hl and hl[attr] then
+              return string.format('#%06x', hl[attr])
+            end
+          end
+          return fallback
+        end
+
+        local normal_bg = hl_attr({ 'Normal' },     'bg', '#1a1a22')
+        local accent    = hl_attr({ 'Function', 'Identifier', 'Keyword' }, 'fg', '#7aa2f7')
+        local muted_fg  = hl_attr({ 'Comment' },    'fg', '#888899')
+
+        -- Winbar bg (what sits *behind* the pill). We explicitly set this so
+        -- the rounded edge glyphs blend seamlessly with the winbar background
+        -- regardless of what tint.nvim / colorscheme do.
+        local winbar_bg    = hl_attr({ 'WinBar', 'Normal' },   'bg', normal_bg)
+        local winbar_bg_nc = hl_attr({ 'WinBarNC', 'NormalNC', 'Normal' }, 'bg', normal_bg)
+
+        -- Active tab: filled pill in accent color, bold dark text.
+        vim.api.nvim_set_hl(0, 'WinBarTab',     { fg = normal_bg, bg = accent, bold = true })
+        -- Edge fg = pill bg (so the half-circle is the pill color),
+        -- edge bg = winbar bg (so the half-circle blends into the bar around it).
+        vim.api.nvim_set_hl(0, 'WinBarTabEdge', { fg = accent,    bg = winbar_bg })
+        vim.api.nvim_set_hl(0, 'WinBarPath',    { fg = muted_fg,  bg = winbar_bg, italic = true })
+
+        -- Inactive tab: muted, flat, no pill (edges invisible).
+        vim.api.nvim_set_hl(0, 'WinBarTabNC',     { fg = muted_fg, bg = winbar_bg_nc })
+        vim.api.nvim_set_hl(0, 'WinBarTabEdgeNC', { fg = winbar_bg_nc, bg = winbar_bg_nc })
+        vim.api.nvim_set_hl(0, 'WinBarPathNC',    { fg = muted_fg, bg = winbar_bg_nc, italic = true })
       end
       set_winbar_hl()
       vim.api.nvim_create_autocmd('ColorScheme', {
