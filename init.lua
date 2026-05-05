@@ -90,6 +90,11 @@ vim.o.updatetime = 250
 -- Decrease mapped sequence wait time
 vim.o.timeoutlen = 1000
 
+-- Global statusline: one bar at the very bottom (none between splits).
+-- lualine sections are empty so this bar will be blank.
+vim.o.laststatus = 3
+vim.o.cmdheight = 1
+
 -- Configure how new splits should be opened
 vim.o.splitright = true
 vim.o.splitbelow = true
@@ -1033,23 +1038,6 @@ require('lazy').setup({
   },
 
   {
-    'akinsho/bufferline.nvim',
-    lazy = false,
-    config = function()
-      local bufferline = require 'bufferline'
-      bufferline.setup {
-
-        options = {
-          style_preset = bufferline.style_preset.default, -- or bufferline.style_preset.minimal,
-          separator_style = 'slant',
-          themable = true,
-          indicator = { style = 'none' },
-        },
-      }
-    end,
-  },
-
-  {
     'nvim-lualine/lualine.nvim',
     lazy = false,
     dependencies = { 'nvim-tree/nvim-web-devicons' },
@@ -1083,6 +1071,55 @@ require('lazy').setup({
         },
       }
 
+      -- Custom filename component: icon + bright basename + muted full path.
+      local devicons = require 'nvim-web-devicons'
+      local function fancy_filename()
+        local full = vim.fn.expand('%:p')
+        if full == '' then return '[No Name]' end
+
+        local rel  = vim.fn.fnamemodify(full, ':.')
+        local dir  = vim.fn.fnamemodify(rel, ':h')
+        local name = vim.fn.fnamemodify(rel, ':t')
+        local ext  = vim.fn.fnamemodify(name, ':e')
+        local icon = devicons.get_icon(name, ext, { default = true }) or ''
+
+        local modified = vim.bo.modified and ' ●' or ''
+        local readonly = (vim.bo.readonly or not vim.bo.modifiable) and ' ' or ''
+
+        local path_part = (dir == '' or dir == '.') and ''
+          or ('  %#WinBarPath#' .. dir .. '%*')
+
+        return '%#WinBarFile#' .. icon .. ' ' .. name .. modified .. readonly .. path_part
+      end
+
+      local function fancy_filename_inactive()
+        local full = vim.fn.expand('%:p')
+        if full == '' then return '[No Name]' end
+        local rel  = vim.fn.fnamemodify(full, ':.')
+        local dir  = vim.fn.fnamemodify(rel, ':h')
+        local name = vim.fn.fnamemodify(rel, ':t')
+        local ext  = vim.fn.fnamemodify(name, ':e')
+        local icon = devicons.get_icon(name, ext, { default = true }) or ''
+        local modified = vim.bo.modified and ' ●' or ''
+        local path_part = (dir == '' or dir == '.') and ''
+          or ('  %#WinBarPathNC#' .. dir .. '%*')
+        return '%#WinBarFileNC#' .. icon .. ' ' .. name .. modified .. path_part
+      end
+
+      -- Highlight groups for the winbar filename split.
+      -- Re-applied on ColorScheme so they survive theme switches.
+      local function set_winbar_hl()
+        vim.api.nvim_set_hl(0, 'WinBarPath',   { fg = '#888899', italic = true })
+        vim.api.nvim_set_hl(0, 'WinBarFile',   { fg = '#ffffff', bold = true })
+        vim.api.nvim_set_hl(0, 'WinBarPathNC', { fg = '#5a5a66', italic = true })
+        vim.api.nvim_set_hl(0, 'WinBarFileNC', { fg = '#9a9aa6' })
+      end
+      set_winbar_hl()
+      vim.api.nvim_create_autocmd('ColorScheme', {
+        group = vim.api.nvim_create_augroup('WinBarFilenameHl', { clear = true }),
+        callback = set_winbar_hl,
+      })
+
       require('lualine').setup {
         options = {
           theme = bubbles_theme,
@@ -1090,8 +1127,8 @@ require('lazy').setup({
           section_separators = { left = '', right = '' },
         },
         sections = {
-          lualine_a = { { 'filename', separator = { left = '', right = '' }, right_padding = 2 } },
-          -- lualine_a = { 'filename' },
+          -- filename now lives in the winbar (top of each split)
+          lualine_a = {},
           lualine_b = {},
           lualine_c = {
             '%=', --[[ add your center components here in place of this comment ]]
@@ -1121,12 +1158,28 @@ require('lazy').setup({
           },
         },
         inactive_sections = {
-          lualine_a = { 'filename' },
+          lualine_a = {},
           lualine_b = {},
           lualine_c = {},
           lualine_x = {},
           lualine_y = {},
           lualine_z = { 'location' },
+        },
+        winbar = {
+          lualine_a = {},
+          lualine_b = {},
+          lualine_c = { fancy_filename },
+          lualine_x = {},
+          lualine_y = {},
+          lualine_z = {},
+        },
+        inactive_winbar = {
+          lualine_a = {},
+          lualine_b = {},
+          lualine_c = { fancy_filename_inactive },
+          lualine_x = {},
+          lualine_y = {},
+          lualine_z = {},
         },
         tabline = {},
         extensions = {},
