@@ -12,7 +12,7 @@ return {
         max_width = 80,
         stages = 'fade',          -- 'fade' / 'slide' / 'fade_in_slide_out' / 'static'
         render = 'compact',       -- 'default' / 'minimal' / 'simple' / 'compact' / 'wrapped-compact'
-        top_down = false,         -- show notifications from the bottom
+        top_down = true,          -- show newest at top, stacking down (top-right corner)
         background_colour = 'NotifyBackground',
       },
     },

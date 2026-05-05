@@ -5,6 +5,7 @@ return {
     { '<leader>th', '<cmd>GhosttyTheme<cr>', desc = '[Th]eme Switcher' },
   },
   --- @type GhosttySyncConfig
+  ---@diagnostic disable-next-line: missing-fields
   opts = {
     -- Persist the chosen colorscheme so it survives nvim restarts.
     -- The plugin rewrites the `vim.cmd.colorscheme(...)` line in this file.

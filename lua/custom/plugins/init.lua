@@ -9,4 +9,5 @@ return {
   require 'custom.plugins.neoscroll',
   require 'custom.plugins.active-window',
   require 'custom.plugins.noice',
+  require 'custom.plugins.quicker',
 }

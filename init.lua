@@ -295,6 +295,7 @@ require('lazy').setup({
     'folke/which-key.nvim',
     event = 'VimEnter', -- Sets the loading event to 'VimEnter'
     opts = {
+      preset = 'helix',
       -- delay between pressing a key and opening which-key (milliseconds)
       -- this setting is independent of vim.o.timeoutlen
       delay = 400,
@@ -1103,48 +1104,6 @@ require('lazy').setup({
       -- (defined as constants so the edit tool doesn't strip the high-bit chars)
       local TAB_LEFT = '' -- U+E0B6 left half-circle (filled)
       local TAB_RIGHT = '' -- U+E0B4 right half-circle (filled)
-
-      -- Shrink each intermediate directory to its first character so long
-      -- paths don't overwhelm: lua/custom/plugins/foo.lua -> l/c/p/foo.lua
-      local function shrink_path(dir)
-        if dir == '' or dir == '.' then
-          return ''
-        end
-        local parts = {}
-        for part in string.gmatch(dir, '[^/]+') do
-          table.insert(parts, part)
-        end
-        local out = {}
-        for i, part in ipairs(parts) do
-          -- Keep the last directory segment intact, shrink the rest.
-          if i == #parts then
-            table.insert(out, part)
-          else
-            table.insert(out, part:sub(1, 1))
-          end
-        end
-        return table.concat(out, '/')
-      end
-
-      -- Truncate a string from the left, prepending an ellipsis.
-      local function ltrunc(s, max)
-        local w = vim.fn.strdisplaywidth(s)
-        if w <= max then
-          return s
-        end
-        if max <= 1 then
-          return '…'
-        end
-        -- Drop characters from the front until it fits, then prepend ellipsis.
-        local out = s
-        while vim.fn.strdisplaywidth(out) > max - 1 do
-          out = out:sub(2)
-          if out == '' then
-            break
-          end
-        end
-        return '…' .. out
-      end
 
       -- Truncate a string from the right, appending an ellipsis.
       local function rtrunc(s, max)
