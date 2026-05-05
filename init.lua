@@ -40,6 +40,9 @@ If you experience any errors while trying to install kickstart, run `:checkhealt
 vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 
+-- how many spaces a <Tab> counts for
+vim.opt.tabstop = 4
+
 -- Set to true if you have a Nerd Font installed and selected in the terminal
 vim.g.have_nerd_font = true
 
@@ -100,7 +103,7 @@ vim.o.splitbelow = true
 --   See `:help lua-options`
 --   and `:help lua-options-guide`
 vim.o.list = true
-vim.opt.listchars = { tab = '» ', trail = '·', nbsp = '␣' }
+vim.opt.listchars = { tab = '  ', trail = '·', nbsp = '␣' }
 
 -- Preview substitutions live, as you type!
 vim.o.inccommand = 'split'
@@ -1004,6 +1007,10 @@ require('lazy').setup({
       --  - ci'  - [C]hange [I]nside [']quote
       -- Gage: in favor of text objects above
       -- require('mini.ai').setup { n_lines = 500 }
+
+      -- Align text interactively.
+      -- Default mappings: `ga` (align) and `gA` (align with preview) in Normal/Visual mode.
+      require('mini.align').setup()
 
       -- Simple and easy statusline.
       --  You could remove this setup call if you don't like it,
