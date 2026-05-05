@@ -91,9 +91,35 @@ vim.o.updatetime = 250
 vim.o.timeoutlen = 1000
 
 -- Global statusline: one bar at the very bottom (none between splits).
--- lualine sections are empty so this bar will be blank.
 vim.o.laststatus = 3
-vim.o.cmdheight = 1
+-- noice.nvim handles the cmdline/messages, so we can hide the cmdline row.
+vim.o.cmdheight = 0
+
+-- Keep the global statusline visible (it's used for the NVIM · path label),
+-- but render it muted so it doesn't visually compete.
+local function style_statusline_hl()
+  local function hl_attr(groups, attr, fallback)
+    for _, g in ipairs(groups) do
+      local ok, hl = pcall(vim.api.nvim_get_hl, 0, { name = g, link = false })
+      if ok and hl and hl[attr] then
+        return string.format('#%06x', hl[attr])
+      end
+    end
+    return fallback
+  end
+  local muted = hl_attr({ 'Comment' }, 'fg', '#888899')
+  local bg = hl_attr({ 'Normal' }, 'bg', 'NONE')
+  local accent = hl_attr({ 'Function', 'Identifier', 'Keyword' }, 'fg', '#7aa2f7')
+  vim.api.nvim_set_hl(0, 'StatusLine', { fg = muted, bg = bg })
+  vim.api.nvim_set_hl(0, 'StatusLineNC', { fg = muted, bg = bg })
+  -- Colored block for the NVIM badge: dark text on accent bg, bold.
+  vim.api.nvim_set_hl(0, 'StatusNvimBadge', { fg = bg, bg = accent, bold = true })
+end
+style_statusline_hl()
+vim.api.nvim_create_autocmd('ColorScheme', {
+  group = vim.api.nvim_create_augroup('StatusLineStyle', { clear = true }),
+  callback = style_statusline_hl,
+})
 
 -- Configure how new splits should be opened
 vim.o.splitright = true
@@ -133,11 +159,8 @@ vim.o.wrap = false
 --  See `:help hlsearch`
 -- vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
 
--- Diagnostic keymaps
-vim.keymap.set('n', '<leader>eq', vim.diagnostic.setloclist, { desc = 'Open diagnostic [Q]uickfix list' })
-vim.keymap.set('n', '<leader>dd', function()
-  vim.diagnostic.enable(not vim.diagnostic.is_enabled())
-end, { desc = '[D]iagnostic [D]isable/Enable' })
+-- Diagnostic keymaps live in lua/custom/plugins (diagnostic-float.nvim block)
+-- so they can be registered with which-key icons + descriptions in one place.
 
 -- Exit terminal mode in the builtin terminal with a shortcut that is a bit easier
 -- for people to discover. Otherwise, you normally need to press <C-\><C-n>, which
@@ -316,6 +339,8 @@ require('lazy').setup({
       spec = {
         { '<leader>s', group = '[S]earch' },
         { '<leader>t', group = '[T]oggle' },
+        { '<leader>f', group = '[F]ind' },
+        -- <leader>d group is registered in the diagnostic-float plugin spec.
         -- { '<leader>h', group = 'Git [H]unk', mode = { 'n', 'v' } },
       },
     },
@@ -406,7 +431,6 @@ require('lazy').setup({
       vim.keymap.set('n', '<leader>fg', ":lua require('telescope').extensions.live_grep_args.live_grep_args()<CR>")
       vim.keymap.set('n', '<leader>fa', ':lua require(\'telescope\').extensions.live_grep_args.live_grep_args("app")<CR>')
       vim.keymap.set('n', '<leader>fd', builtin.diagnostics, { desc = '[F]ind [D]iagnostics' })
-      vim.keymap.set('n', '<leader>df', builtin.diagnostics, { desc = '[D]iagnostics [F]ind' })
       vim.keymap.set('n', '<leader>fr', builtin.resume, { desc = '[F]ind [R]esume' })
       vim.keymap.set('n', '<leader>fo', builtin.oldfiles, { desc = '[F]ind [O]ld' })
 
@@ -528,7 +552,7 @@ require('lazy').setup({
 
           -- Execute a code action, usually your cursor needs to be on top of an error
           -- or a suggestion from your LSP for this to activate.
-          map('<leader>ea', vim.lsp.buf.code_action, 'See error (code action)', { 'n', 'x' })
+          map('<leader>da', vim.lsp.buf.code_action, 'code action', { 'n', 'x' })
           map('gra', vim.lsp.buf.code_action, '[G]oto Code [A]ction', { 'n', 'x' })
 
           -- Find references for the word under your cursor.
@@ -568,8 +592,10 @@ require('lazy').setup({
           ---@return boolean
           local function client_supports_method(client, method, bufnr)
             if vim.fn.has 'nvim-0.11' == 1 then
+              ---@diagnostic disable-next-line: param-type-mismatch
               return client:supports_method(method, bufnr)
             else
+              ---@diagnostic disable-next-line: param-type-mismatch
               return client.supports_method(method, { bufnr = bufnr })
             end
           end
@@ -617,10 +643,15 @@ require('lazy').setup({
 
       -- Diagnostic Config
       -- See :help vim.diagnostic.Opts
+      -- Strategy: gutter signs + underlines for at-a-glance presence;
+      -- the full message comes from a float (auto-shown on CursorHold via
+      -- diagnostic-float.nvim, plus <leader>do for on-demand).
       vim.diagnostic.config {
         severity_sort = true,
-        float = { border = 'rounded', source = 'if_many' },
-        underline = { severity = vim.diagnostic.severity.ERROR },
+        update_in_insert = false,
+        virtual_text = false,
+        virtual_lines = false,
+        underline = true,
         signs = vim.g.have_nerd_font and {
           text = {
             [vim.diagnostic.severity.ERROR] = '󰅚 ',
@@ -629,18 +660,12 @@ require('lazy').setup({
             [vim.diagnostic.severity.HINT] = '󰌶 ',
           },
         } or {},
-        virtual_text = {
+        float = {
+          border = 'rounded',
           source = 'if_many',
-          spacing = 2,
-          format = function(diagnostic)
-            local diagnostic_message = {
-              [vim.diagnostic.severity.ERROR] = diagnostic.message,
-              [vim.diagnostic.severity.WARN] = diagnostic.message,
-              [vim.diagnostic.severity.INFO] = diagnostic.message,
-              [vim.diagnostic.severity.HINT] = diagnostic.message,
-            }
-            return diagnostic_message[diagnostic.severity]
-          end,
+          header = '',
+          prefix = '',
+          focusable = false,
         },
       }
 
@@ -1076,13 +1101,15 @@ require('lazy').setup({
 
       -- Rounded Powerline edges for the browser-tab look.
       -- (defined as constants so the edit tool doesn't strip the high-bit chars)
-      local TAB_LEFT  = ''  -- U+E0B6 left half-circle (filled)
-      local TAB_RIGHT = ''  -- U+E0B4 right half-circle (filled)
+      local TAB_LEFT = '' -- U+E0B6 left half-circle (filled)
+      local TAB_RIGHT = '' -- U+E0B4 right half-circle (filled)
 
       -- Shrink each intermediate directory to its first character so long
       -- paths don't overwhelm: lua/custom/plugins/foo.lua -> l/c/p/foo.lua
       local function shrink_path(dir)
-        if dir == '' or dir == '.' then return '' end
+        if dir == '' or dir == '.' then
+          return ''
+        end
         local parts = {}
         for part in string.gmatch(dir, '[^/]+') do
           table.insert(parts, part)
@@ -1102,13 +1129,19 @@ require('lazy').setup({
       -- Truncate a string from the left, prepending an ellipsis.
       local function ltrunc(s, max)
         local w = vim.fn.strdisplaywidth(s)
-        if w <= max then return s end
-        if max <= 1 then return '…' end
+        if w <= max then
+          return s
+        end
+        if max <= 1 then
+          return '…'
+        end
         -- Drop characters from the front until it fits, then prepend ellipsis.
         local out = s
         while vim.fn.strdisplaywidth(out) > max - 1 do
           out = out:sub(2)
-          if out == '' then break end
+          if out == '' then
+            break
+          end
         end
         return '…' .. out
       end
@@ -1116,73 +1149,101 @@ require('lazy').setup({
       -- Truncate a string from the right, appending an ellipsis.
       local function rtrunc(s, max)
         local w = vim.fn.strdisplaywidth(s)
-        if w <= max then return s end
-        if max <= 1 then return '…' end
+        if w <= max then
+          return s
+        end
+        if max <= 1 then
+          return '…'
+        end
         local out = s
         while vim.fn.strdisplaywidth(out) > max - 1 do
           out = out:sub(1, -2)
-          if out == '' then break end
+          if out == '' then
+            break
+          end
         end
         return out .. '…'
       end
 
-      local function render_filename(active)
-        local full = vim.fn.expand('%:p')
-        if full == '' then return '[No Name]' end
+      -- Cache of icon-color highlight groups so we don't recreate them each redraw.
+      local icon_hl_cache = {}
+      local function icon_hl_for(name, ext, tab_bg_hl)
+        local color = devicons.get_icon_color(name, ext)
+        -- Validate shape: must be #RRGGBB. devicons can return nil or junk for
+        -- defaults / unknown filetypes, which would corrupt the highlight name.
+        if type(color) ~= 'string' or not color:match '^#%x%x%x%x%x%x$' then
+          return nil
+        end
+        local key = 'WinBarIcon_' .. color:sub(2) .. '_' .. tab_bg_hl
+        if icon_hl_cache[key] then
+          return key
+        end
+        -- Pull the pill's bg so the icon's fg sits on the correct background.
+        local ok, hl = pcall(vim.api.nvim_get_hl, 0, { name = tab_bg_hl, link = false })
+        local bg = (ok and hl and hl.bg) and string.format('#%06x', hl.bg) or 'NONE'
+        vim.api.nvim_set_hl(0, key, { fg = color, bg = bg, bold = true })
+        icon_hl_cache[key] = true
+        return key
+      end
 
-        local rel  = vim.fn.fnamemodify(full, ':.')
-        local dir  = vim.fn.fnamemodify(rel, ':h')
-        local name = vim.fn.fnamemodify(rel, ':t')
-        local ext  = vim.fn.fnamemodify(name, ':e')
+      local function render_filename(active)
+        local full = vim.fn.expand '%:p'
+        if full == '' then
+          return '[No Name]'
+        end
+
+        local name = vim.fn.fnamemodify(full, ':t')
+        local ext = vim.fn.fnamemodify(name, ':e')
         local icon = devicons.get_icon(name, ext, { default = true }) or ''
 
         local modified = vim.bo.modified and ' ●' or ''
         local readonly = active and (vim.bo.readonly or not vim.bo.modifiable) and ' ' or ''
 
-        local tab_hl  = active and 'WinBarTab'     or 'WinBarTabNC'
+        local tab_hl = active and 'WinBarTab' or 'WinBarTabNC'
         local edge_hl = active and 'WinBarTabEdge' or 'WinBarTabEdgeNC'
-        local path_hl = active and 'WinBarPath'    or 'WinBarPathNC'
+        local icon_hl = icon_hl_for(name, ext, tab_hl) or tab_hl
 
+        -- Truncate filename if it would overflow the pill (rare but graceful).
         local width = vim.api.nvim_win_get_width(0)
-
-        -- Pill chrome: 2 rounded edge glyphs + 2 inner spaces + icon + space.
-        local edges      = 2
-        local inner_pad  = 2
-        local icon_w     = vim.fn.strdisplaywidth(icon) + 1
-        local mod_w      = vim.fn.strdisplaywidth(modified .. readonly)
-        local chrome     = edges + inner_pad + icon_w + mod_w
-
-        -- Reserve at least 8 cols for the filename, give the rest to path (with 2-col gap).
-        local pill_name_budget = math.max(6, math.floor(width * 0.5) - chrome)
-        local shown_name = rtrunc(name, pill_name_budget)
-        local pill_w = chrome + vim.fn.strdisplaywidth(shown_name)
-
-        local path_budget = width - pill_w - 3 -- 2-col gap + 1 safety
-        local path_part = ''
-        if dir ~= '' and dir ~= '.' and path_budget >= 4 then
-          local shown
-          if path_budget >= vim.fn.strdisplaywidth(dir) then
-            shown = dir
-          elseif path_budget >= vim.fn.strdisplaywidth(shrink_path(dir)) then
-            shown = shrink_path(dir)
-          else
-            shown = ltrunc(shrink_path(dir), path_budget)
-          end
-          path_part = '  %#' .. path_hl .. '#' .. shown .. '%*'
-        end
+        local chrome = 2 + 2 + vim.fn.strdisplaywidth(icon) + 1 + vim.fn.strdisplaywidth(modified .. readonly)
+        local shown_name = rtrunc(name, math.max(6, width - chrome - 2))
 
         -- Render as a browser-tab-like pill with rounded Powerline edges.
+        --   <left edge> <colored icon> <name> <right edge>
         return table.concat {
-          '%#', edge_hl, '#', TAB_LEFT,
-          '%#', tab_hl,  '# ', icon, ' ', shown_name, modified, readonly, ' ',
-          '%#', edge_hl, '#', TAB_RIGHT,
+          '%#',
+          edge_hl,
+          '#',
+          TAB_LEFT,
+          '%#',
+          tab_hl,
+          '# ',
+          '%#',
+          icon_hl,
+          '#',
+          icon,
           '%*',
-          path_part,
+          '%#',
+          tab_hl,
+          '# ',
+          shown_name,
+          modified,
+          readonly,
+          ' ',
+          '%#',
+          edge_hl,
+          '#',
+          TAB_RIGHT,
+          '%*',
         }
       end
 
-      local function fancy_filename()          return render_filename(true)  end
-      local function fancy_filename_inactive() return render_filename(false) end
+      local function fancy_filename()
+        return render_filename(true)
+      end
+      local function fancy_filename_inactive()
+        return render_filename(false)
+      end
 
       -- Highlight groups for the winbar filename split.
       -- Re-applied on ColorScheme so they survive theme switches.
@@ -1198,33 +1259,61 @@ require('lazy').setup({
           return fallback
         end
 
-        local normal_bg = hl_attr({ 'Normal' },     'bg', '#1a1a22')
-        local accent    = hl_attr({ 'Function', 'Identifier', 'Keyword' }, 'fg', '#7aa2f7')
-        local muted_fg  = hl_attr({ 'Comment' },    'fg', '#888899')
+        local normal_bg = hl_attr({ 'Normal' }, 'bg', '#1a1a22')
+        local normal_fg = hl_attr({ 'Normal' }, 'fg', '#e0e0e8')
+        local accent = hl_attr({ 'Function', 'Identifier', 'Keyword' }, 'fg', '#7aa2f7')
+        local muted_fg = hl_attr({ 'Comment' }, 'fg', '#888899')
+        -- Inactive filename: not as muted as Comment, not as bold as Normal.
+        -- Use Normal.fg directly so inactive window names stay readable.
+        local inactive_fg = normal_fg
 
-        -- Winbar bg (what sits *behind* the pill). We explicitly set this so
-        -- the rounded edge glyphs blend seamlessly with the winbar background
-        -- regardless of what tint.nvim / colorscheme do.
-        local winbar_bg    = hl_attr({ 'WinBar', 'Normal' },   'bg', normal_bg)
-        local winbar_bg_nc = hl_attr({ 'WinBarNC', 'NormalNC', 'Normal' }, 'bg', normal_bg)
+        -- Force the winbar's own bg to match Normal so there's no dark gutter
+        -- around the pill. We do this before reading WinBar so derivations are
+        -- consistent. NormalNC may differ from Normal on some themes; we force
+        -- inactive winbar to match its window's bg too.
+        vim.api.nvim_set_hl(0, 'WinBar', { bg = normal_bg, fg = muted_fg })
+        vim.api.nvim_set_hl(0, 'WinBarNC', { bg = normal_bg, fg = muted_fg })
+        -- Lualine fills any unset winbar columns with its own theme groups;
+        -- override those so the area around our pill stays the buffer bg.
+        vim.api.nvim_set_hl(0, 'lualine_c_normal', { bg = normal_bg, fg = muted_fg })
+        vim.api.nvim_set_hl(0, 'lualine_c_inactive', { bg = normal_bg, fg = muted_fg })
+
+        local winbar_bg = normal_bg
+        local winbar_bg_nc = normal_bg
 
         -- Active tab: filled pill in accent color, bold dark text.
-        vim.api.nvim_set_hl(0, 'WinBarTab',     { fg = normal_bg, bg = accent, bold = true })
+        vim.api.nvim_set_hl(0, 'WinBarTab', { fg = normal_bg, bg = accent, bold = true })
         -- Edge fg = pill bg (so the half-circle is the pill color),
         -- edge bg = winbar bg (so the half-circle blends into the bar around it).
-        vim.api.nvim_set_hl(0, 'WinBarTabEdge', { fg = accent,    bg = winbar_bg })
-        vim.api.nvim_set_hl(0, 'WinBarPath',    { fg = muted_fg,  bg = winbar_bg, italic = true })
+        vim.api.nvim_set_hl(0, 'WinBarTabEdge', { fg = accent, bg = winbar_bg })
+        vim.api.nvim_set_hl(0, 'WinBarPath', { fg = muted_fg, bg = winbar_bg, italic = true })
 
-        -- Inactive tab: muted, flat, no pill (edges invisible).
-        vim.api.nvim_set_hl(0, 'WinBarTabNC',     { fg = muted_fg, bg = winbar_bg_nc })
+        -- Inactive tab: bare filename in normal text color, no pill rendered
+        -- (edges blend into winbar bg so the rounded glyphs are invisible).
+        vim.api.nvim_set_hl(0, 'WinBarTabNC', { fg = inactive_fg, bg = winbar_bg_nc })
         vim.api.nvim_set_hl(0, 'WinBarTabEdgeNC', { fg = winbar_bg_nc, bg = winbar_bg_nc })
-        vim.api.nvim_set_hl(0, 'WinBarPathNC',    { fg = muted_fg, bg = winbar_bg_nc, italic = true })
+        vim.api.nvim_set_hl(0, 'WinBarPathNC', { fg = muted_fg, bg = winbar_bg_nc, italic = true })
       end
       set_winbar_hl()
       vim.api.nvim_create_autocmd('ColorScheme', {
         group = vim.api.nvim_create_augroup('WinBarFilenameHl', { clear = true }),
-        callback = set_winbar_hl,
+        callback = function()
+          set_winbar_hl()
+          -- Drop the icon-color cache so its bg gets re-derived from the new theme.
+          icon_hl_cache = {}
+        end,
       })
+
+      -- Bottom statusline component: "[ NVIM ]  /full/path/to/file".
+      -- The NVIM badge is a colored block (theme accent bg, dark fg, bold).
+      local function nvim_path()
+        local full = vim.fn.expand '%:p'
+        local badge = '%#StatusNvimBadge# NVIM %*'
+        if full == '' then
+          return badge
+        end
+        return badge .. '  ' .. full
+      end
 
       require('lualine').setup {
         options = {
@@ -1236,32 +1325,11 @@ require('lazy').setup({
           -- filename now lives in the winbar (top of each split)
           lualine_a = {},
           lualine_b = {},
-          lualine_c = {
-            '%=', --[[ add your center components here in place of this comment ]]
-          },
+          lualine_c = { nvim_path },
           lualine_x = {},
 
           lualine_y = {},
-          lualine_z = {
-            'filetype',
-            -- { 'location', separator = { right = '' }, left_padding = 2 },
-            {
-              'lsp_status',
-              icon = '', -- f013
-              symbols = {
-                -- Standard unicode symbols to cycle through for LSP progress:
-                spinner = { '⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏' },
-                -- Standard unicode symbol for when LSP is done:
-                done = '✓',
-                -- Delimiter inserted between LSP names:
-                separator = ' ',
-              },
-              -- List of LSP names to ignore (e.g., `null-ls`):
-              ignore_lsp = {},
-              -- Display the LSP name
-              show_name = true,
-            },
-          },
+          lualine_z = {},
         },
         inactive_sections = {
           lualine_a = {},
@@ -1269,7 +1337,7 @@ require('lazy').setup({
           lualine_c = {},
           lualine_x = {},
           lualine_y = {},
-          lualine_z = { 'location' },
+          lualine_z = {},
         },
         winbar = {
           lualine_a = {},
@@ -1559,119 +1627,81 @@ require('lazy').setup({
   },
 
   {
-    'zaldih/themery.nvim',
-    lazy = false,
-    config = function()
-      require('themery').setup {
-        themes = {
-          { name = 'Tokyo Night', colorscheme = 'tokyonight' },
-          { name = 'Tokyo Night Storm', colorscheme = 'tokyonight-storm' },
-          { name = 'Tokyo Night Moon', colorscheme = 'tokyonight-moon' },
-          { name = 'Tokyo Night Day', colorscheme = 'tokyonight-day' },
-          { name = 'Catppuccin Mocha', colorscheme = 'catppuccin-mocha' },
-          { name = 'Catppuccin Macchiato', colorscheme = 'catppuccin-macchiato' },
-          { name = 'Catppuccin Frappe', colorscheme = 'catppuccin-frappe' },
-          { name = 'Catppuccin Latte', colorscheme = 'catppuccin-latte' },
-          { name = 'Rose Pine', colorscheme = 'rose-pine' },
-          { name = 'Rose Pine Moon', colorscheme = 'rose-pine-moon' },
-          { name = 'Rose Pine Dawn', colorscheme = 'rose-pine-dawn' },
-          { name = 'Gruvbox Dark', colorscheme = 'gruvbox' },
-          { name = 'Nord', colorscheme = 'nord' },
-          { name = 'Kanagawa Wave', colorscheme = 'kanagawa-wave' },
-          { name = 'Kanagawa Dragon', colorscheme = 'kanagawa-dragon' },
-          { name = 'Kanagawa Lotus', colorscheme = 'kanagawa-lotus' },
-          { name = 'Nightfox', colorscheme = 'nightfox' },
-          { name = 'Dayfox', colorscheme = 'dayfox' },
-          { name = 'Dawnfox', colorscheme = 'dawnfox' },
-          { name = 'Duskfox', colorscheme = 'duskfox' },
-          { name = 'Nordfox', colorscheme = 'nordfox' },
-          { name = 'Terafox', colorscheme = 'terafox' },
-          { name = 'Carbonfox', colorscheme = 'carbonfox' },
-          { name = 'Everforest', colorscheme = 'everforest' },
-          { name = 'Dracula', colorscheme = 'dracula' },
-          { name = 'One Dark', colorscheme = 'onedark' },
-          { name = 'Solarized Osaka', colorscheme = 'solarized-osaka' },
-          { name = 'Material', colorscheme = 'material' },
-          { name = 'Oasis', colorscheme = 'oasis' },
-          { name = 'Monokai Pro', colorscheme = 'monokai-pro' },
-          { name = 'Cyberdream', colorscheme = 'cyberdream' },
-          { name = 'Melange', colorscheme = 'melange' },
-          { name = 'yorumi', colorscheme = 'yorumi' },
-        },
-        livePreview = true, -- Live preview when cycling through themes
-      }
-
-      -- Set up the keybinding for theme switcher
-      vim.keymap.set('n', '<leader>th', '<cmd>GhosttyTheme<cr>', { desc = '[Th]eme Switcher' })
-    end,
-  },
-
-  {
+    -- Auto-show diagnostic floats on cursor hold; manual keys registered
+    -- via which-key with separate icons (so the help popup shows them).
     'BadgerBloke/diagnostic-float.nvim',
-    dependencies = { 'neovim/nvim-lspconfig' },
+    dependencies = { 'neovim/nvim-lspconfig', 'folke/which-key.nvim' },
+    event = { 'BufReadPost', 'BufNewFile' },
     opts = {
       enabled = true,
-      delay = 100,
-      toggle_key = '<C-i>',
-      leader_command = 'd',
+      delay = 100, -- ms before float pops on cursor hold
+      -- Both keys disabled: <C-i> is jumplist-forward / Tab in terminals,
+      -- and bare <leader>d would shadow the <leader>d* group prefix and fire
+      -- on fast keypresses. Toggle is exposed as <leader>dt below.
+      toggle_key = '',
+      leader_command = '',
     },
-    keys = {
-      {
-        '<leader>do',
-        function()
-          vim.diagnostic.open_float()
-        end,
-        desc = 'Diagnostic: goto floating window',
-      },
-      {
-        '<leader>p',
-        function()
-          vim.diagnostic.goto_prev()
-        end,
-        desc = 'Diagnostic: previous',
-      },
-      {
-        '<leader>n',
-        function()
-          vim.diagnostic.goto_next()
-        end,
-        desc = 'DESCRIPTION',
-      },
-
-      {
-        '<leader>dt',
-        function() end,
-      },
-
-      {
-        '<leader>ee',
-        function()
-          require('diagnostic-float').show_diagnostic_float()
-        end,
-        desc = 'Show diagnostic',
-      },
-      {
-        '<leader>et',
-        function()
-          require('diagnostic-float').toggle()
-        end,
-        desc = 'Toggle diagnostic',
-      },
-      {
-        '<C-i>',
-        function()
-          require('diagnostic-float').show_diagnostic_float()
-        end,
-        desc = 'Show diagnostic',
-      },
-      {
-        '<leader>xd',
-        function()
-          require('diagnostic-float').toggle()
-        end,
-        desc = 'Toggle diagnostic',
-      },
-    },
+    config = function(_, opts)
+      require('diagnostic-float').setup(opts)
+      local wk = require 'which-key'
+      wk.add {
+        { '<leader>d', group = 'Diagnostic', icon = '󰋽' },
+        {
+          '<leader>do',
+          function()
+            vim.diagnostic.open_float()
+          end,
+          icon = '󰋽',
+          desc = 'open float',
+        },
+        {
+          '<leader>dt',
+          function()
+            require('diagnostic-float').toggle()
+          end,
+          icon = '󰈈',
+          desc = 'toggle auto-float',
+        },
+        {
+          '<leader>dn',
+          function()
+            vim.diagnostic.goto_next()
+          end,
+          icon = '󰅀',
+          desc = 'next',
+        },
+        {
+          '<leader>dp',
+          function()
+            vim.diagnostic.goto_prev()
+          end,
+          icon = '󰅃',
+          desc = 'previous',
+        },
+        {
+          '<leader>dq',
+          vim.diagnostic.setloclist,
+          icon = '󰉹',
+          desc = 'quickfix list',
+        },
+        {
+          '<leader>df',
+          function()
+            require('telescope.builtin').diagnostics()
+          end,
+          icon = '󰍉',
+          desc = 'find/search',
+        },
+        {
+          '<leader>dD',
+          function()
+            vim.diagnostic.enable(not vim.diagnostic.is_enabled())
+          end,
+          icon = '󰒒',
+          desc = 'enable/disable',
+        },
+      }
+    end,
   },
 
   {
@@ -1714,5 +1744,10 @@ require('lazy').setup({
 }, {
   ui = {},
 })
+
+-- Apply the persisted colorscheme last, so it overrides any default a
+-- plugin's `config` set during lazy.setup. Wrapped in pcall in case the
+-- saved scheme isn't installed.
+pcall(require, 'current-theme')
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et

@@ -8,4 +8,5 @@ return {
   require 'custom.plugins.smear-cursor',
   require 'custom.plugins.neoscroll',
   require 'custom.plugins.active-window',
+  require 'custom.plugins.noice',
 }

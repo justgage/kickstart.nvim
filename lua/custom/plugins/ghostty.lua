@@ -1,12 +1,18 @@
 return {
   'landerson02/ghostty-theme-sync.nvim',
   lazy = false,
+  keys = {
+    { '<leader>th', '<cmd>GhosttyTheme<cr>', desc = '[Th]eme Switcher' },
+  },
   --- @type GhosttySyncConfig
   opts = {
-    -- Add your configuration here
+    -- Persist the chosen colorscheme so it survives nvim restarts.
+    -- The plugin rewrites the `vim.cmd.colorscheme(...)` line in this file.
+    persist_nvim_theme = true,
+    nvim_config_path = '~/.config/nvim/lua/current-theme.lua',
   },
-  config = function()
-    require('ghostty-theme-sync').setup()
+  config = function(_, opts)
+    require('ghostty-theme-sync').setup(opts)
 
     -- Auto-reload Ghostty when colorscheme changes
     vim.api.nvim_create_autocmd('ColorScheme', {

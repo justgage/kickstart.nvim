@@ -45,7 +45,7 @@ return {
 
     apply()
 
-    -- Re-apply whenever the colorscheme changes (themery-friendly).
+    -- Re-apply whenever the colorscheme changes.
     vim.api.nvim_create_autocmd('ColorScheme', {
       group = vim.api.nvim_create_augroup('SmearCursorThemeSync', { clear = true }),
       callback = apply,

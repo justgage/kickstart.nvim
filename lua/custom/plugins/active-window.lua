@@ -13,6 +13,14 @@ return {
       tint_background_colors = true,
       highlight_ignore_patterns = {
         'WinSeparator', 'Status.*', 'NeoTree.*', 'TelescopePrompt.*', 'TelescopeBorder',
+        -- Keep the gutter at full brightness even on inactive windows so line
+        -- numbers / signs / diagnostics stay legible.
+        'LineNr', 'LineNrAbove', 'LineNrBelow', 'CursorLineNr',
+        'SignColumn', 'FoldColumn', 'EndOfBuffer',
+        'GitSigns.*', 'DiagnosticSign.*', 'Diagnostic.*',
+        -- Don't dim the winbar / its lualine fill so the tab pill stays vivid
+        -- and its background matches Normal on inactive windows too.
+        'WinBar', 'WinBarNC', 'WinBar.*', 'lualine_.*',
       },
       window_ignore_function = function(winid)
         local bufid   = vim.api.nvim_win_get_buf(winid)
