@@ -4,4 +4,6 @@
 -- See the kickstart.nvim README for more information
 return {
   require 'custom.plugins.harpoon',
+  require 'custom.plugins.tiny-glimmer',
+  require 'custom.plugins.smear-cursor',
 }
