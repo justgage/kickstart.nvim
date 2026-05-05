@@ -6,4 +6,6 @@ return {
   require 'custom.plugins.harpoon',
   require 'custom.plugins.tiny-glimmer',
   require 'custom.plugins.smear-cursor',
+  require 'custom.plugins.neoscroll',
+  require 'custom.plugins.active-window',
 }

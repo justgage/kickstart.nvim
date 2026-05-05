@@ -65,13 +65,11 @@ return {
       search = {
         enabled = true,
         default_animation = {
-          name = 'pulse',
+          name = 'fade',
           settings = {
-            max_duration = 1200,
-            chars_for_max_duration = 8,
-            intensity = 2.0,
-            pulse_count = 4,
-            from_color = '#FF00FF', -- magenta
+            max_duration = 300,        -- short and sweet
+            chars_for_max_duration = 5,
+            from_color = '#7AA2F7',    -- soft blue, not screaming
           },
         },
         next_mapping = 'nzzzv',
