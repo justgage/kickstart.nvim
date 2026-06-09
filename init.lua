@@ -40,6 +40,13 @@ If you experience any errors while trying to install kickstart, run `:checkhealt
 vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 
+-- Disable the auto-discovered stylua LSP from nvim-lspconfig.
+-- The prebuilt stylua binary distributed via Mason / GitHub releases does
+-- not include the `--lsp` feature (it requires `cargo install stylua
+-- --features lsp` from source). Conform.nvim still runs stylua as a
+-- regular formatter below, so formatting is unaffected.
+vim.lsp.enable('stylua', false)
+
 -- how many spaces a <Tab> counts for
 vim.opt.tabstop = 4
 
@@ -826,7 +833,7 @@ require('lazy').setup({
       'folke/lazydev.nvim',
 
       -- Search globally across project
-      'mikavilpas/blink-ripgrep.nvim',
+      -- 'mikavilpas/blink-ripgrep.nvim',
     },
     --- @module 'blink.cmp'
     --- @type blink.cmp.Config
@@ -855,6 +862,15 @@ require('lazy').setup({
         -- See :h blink-cmp-config-keymap for defining your own keymap
         preset = 'enter',
 
+        -- Manually trigger global string (ripgrep) search only.
+        -- Keeps the noisy ripgrep results out of the normal completion menu,
+        -- but lets you summon them on demand.
+        ['<C-g>'] = {
+          function(cmp)
+            cmp.show { providers = { 'ripgrep' } }
+          end,
+        },
+
         -- For more advanced Luasnip keymaps (e.g. selecting choice nodes, expansion) see:
         --    https://github.com/L3MON4D3/LuaSnip?tab=readme-ov-file#keymaps
       },
@@ -872,18 +888,56 @@ require('lazy').setup({
       },
 
       sources = {
-        default = { 'lsp', 'buffer', 'path', 'snippets', 'lazydev', 'ripgrep' },
+        -- Ranking (via score_offset below):
+        --   1. LSP             -- always correct
+        --   2. buffer (local)  -- current buffer only
+        --   3. buffer_all      -- other loaded/visible buffers
+        --   4. snippets        -- prefixed, don't need a boost
+        --   5. ripgrep         -- not in default; trigger manually with <C-g>
+        default = { 'lsp', 'buffer', 'buffer_all', 'path', 'snippets', 'lazydev' },
         providers = {
+          lsp = { score_offset = 100 },
           lazydev = { module = 'lazydev.integrations.blink', score_offset = 100 },
-          ripgrep = {
-            module = 'blink-ripgrep',
-            score_offset = 1,
-            name = 'Ripgrep',
-            -- see the full configuration below for all available options
-            ---@module "blink-ripgrep"
-            ---@type blink-ripgrep.Options
-            opts = {},
+
+          -- Words from the current buffer only
+          buffer = {
+            score_offset = 50,
+            opts = {
+              get_bufnrs = function()
+                return { vim.api.nvim_get_current_buf() }
+              end,
+            },
           },
+
+          -- Words from other open/visible buffers
+          buffer_all = {
+            name = 'Buffers',
+            module = 'blink.cmp.sources.buffer',
+            score_offset = 25,
+            opts = {
+              get_bufnrs = function()
+                local current = vim.api.nvim_get_current_buf()
+                return vim.tbl_filter(function(bufnr)
+                  return bufnr ~= current and vim.api.nvim_buf_is_loaded(bufnr) and vim.bo[bufnr].buftype ~= 'nofile'
+                end, vim.api.nvim_list_bufs())
+              end,
+            },
+          },
+
+          snippets = { score_offset = 10 },
+
+          -- ripgrep = {
+          --   module = 'blink-ripgrep',
+          --   name = 'Ripgrep',
+          --   -- Not in `default`; only shown when triggered with <C-g>.
+          --   -- If you ever want it back in the default menu, give it a small
+          --   -- score_offset (e.g. 1) and add 'ripgrep' to `default` above.
+          --   score_offset = 1,
+          --   min_keyword_length = 4,
+          --   ---@module "blink-ripgrep"
+          --   ---@type blink-ripgrep.Options
+          --   opts = {},
+          -- },
         },
       },
 
@@ -1508,19 +1562,13 @@ require('lazy').setup({
   -- Inline Blame
   {
     'f-person/git-blame.nvim',
-    -- load the plugin at startup
     event = 'VeryLazy',
-    -- Because of the keys part, you will be lazy loading this plugin.
-    -- The plugin will only load once one of the keys is used.
-    -- If you want to load the plugin at startup, add something like event = "VeryLazy",
-    -- or lazy = false. One of both options will work.
     opts = {
-      -- your configuration comes here
-      -- for example
       enabled = true, -- if you want to enable the plugin
-      message_template = '<author> • <summary> • <date> • <<sha>>', -- template for the blame message, check the Message template section for more options
-      date_format = '%r - %m-%d-%Y %H:%M:%S', -- template for the date, check Date format section for more options
+      message_template = '   <author> “<summary>” <-  <date> (<sha>) ',
+      date_format = '%r', -- template for the date, check Date format section for more options
       virtual_text_column = 1, -- virtual text start column, check Start virtual text at column section for more options
+      delay = 1000,
     },
   },
 
@@ -1559,17 +1607,18 @@ require('lazy').setup({
         -- there are no required options atm
       }
 
-      -- serach for under the cursor
-      vim.keymap.set({ 'n', 'x' }, '<leader>fw', function()
-        local search = vim.fn.getreg '/'
-        -- surround with \b if "word" search (such as when pressing `*`)
-        if search and vim.startswith(search, '\\<') and vim.endswith(search, '\\>') then
-          search = '\\b' .. search:sub(3, -3) .. '\\b'
-        end
+      -- Helper: yank the current visual selection without clobbering " register
+      local function get_visual_selection()
+        local saved = vim.fn.getreg '"'
+        local saved_type = vim.fn.getregtype '"'
+        -- yank active visual selection into register v
+        vim.cmd 'normal! "vy'
+        local text = vim.fn.getreg 'v'
+        vim.fn.setreg('"', saved, saved_type)
+        return text
+      end
 
-        local prefills = { search = search }
-
-        -- instance check
+      local function open_grug_far(prefills)
         if not grug_far.has_instance 'explorer' then
           grug_far.open {
             instanceName = 'explorer',
@@ -1578,10 +1627,34 @@ require('lazy').setup({
           }
         else
           grug_far.get_instance('explorer'):open()
-          -- updating the prefills without clearing the search and other fields
+          -- update prefills without clearing other fields
           grug_far.get_instance('explorer'):update_input_values(prefills, false)
         end
-      end, { desc = 'grug-far: Search using @/ register value or visual selection' })
+      end
+
+      -- Normal mode: search the word under the cursor.
+      -- Falls back to the last search register `@/` if cursor isn't on a word.
+      vim.keymap.set('n', '<leader>fw', function()
+        local search = vim.fn.expand '<cword>'
+        if search == '' then
+          search = vim.fn.getreg '/' or ''
+          -- normalize \<word\> (from `*`) to a word-boundary regex grug-far understands
+          if vim.startswith(search, '\\<') and vim.endswith(search, '\\>') then
+            search = '\\b' .. search:sub(3, -3) .. '\\b'
+          end
+        end
+        open_grug_far { search = search }
+      end, { desc = 'grug-far: Search word under cursor' })
+
+      -- Visual mode: search the actual selected text.
+      vim.keymap.set('x', '<leader>fw', function()
+        local search = get_visual_selection()
+        -- escape regex metacharacters so the selection searches literally
+        search = vim.fn.escape(search, [[\.*+?^$()[]{}|/]])
+        -- collapse newlines for multi-line selections
+        search = search:gsub('\n', '\\n')
+        open_grug_far { search = search }
+      end, { desc = 'grug-far: Search visual selection' })
     end,
   },
 
